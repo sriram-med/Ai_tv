@@ -1972,10 +1972,20 @@ public class HomeActivity extends Activity {
         View old = focusedView;
         if (old != null && old != v) {
             scaleTo(old, 1f);
-            old.animate().translationZ(0).setDuration(lite ? 0 : 150).start();
+            old.animate().cancel();
+            old.animate().translationZ(0).rotationX(0f).rotationY(0f)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
+                    .setDuration(lite ? 0 : 190).start();
         }
         // Lifted on a soft shadow (no ring, like Plume): it shows on white and bright tiles too.
-        if (v != null && v != old) v.animate().translationZ(px(14)).setDuration(lite ? 0 : 150).start();
+        if (v != null && v != old) {
+            v.animate().cancel();
+            // Subtle perspective on focused tiles; never rotate text enough to hurt readability.
+            v.setCameraDistance(px(9000));
+            v.animate().translationZ(px(14)).rotationX(-1.5f).rotationY(1.2f)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
+                    .setDuration(lite ? 0 : 220).start();
+        }
         focusedView = v;
         ringRadius = px(radiusDp);
         ring.animate().alpha(v == null ? 0f : 1f).setDuration(150).start();
