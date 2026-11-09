@@ -58,7 +58,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(awk '$1 == "versionName" {gsub(/\047/, "", $2); print $2; exit}' app/build.gradle)
-          test "$VERSION" = "1.2.12"
+          test -n "$VERSION"
           TAG="ai-tv-v$VERSION"
           test -n "$TAG"
           if gh release view "$TAG" >/dev/null 2>&1; then
