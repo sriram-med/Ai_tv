@@ -52,7 +52,7 @@ async function readJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 createServer(async (req, res) => {
-  if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, configured: Boolean(KEY && PAIRING_SECRET && SIGNING_SECRET && db), watchmodeConfigured: Boolean(process.env.WATCHMODE_API_KEY) });
+  if (req.method === 'GET' && new URL(req.url,'http://localhost').pathname === '/health') return json(res, 200, { ok: true, configured: Boolean(KEY && PAIRING_SECRET && SIGNING_SECRET && db), watchmodeConfigured: Boolean(process.env.WATCHMODE_API_KEY) });
   if (req.method === 'POST' && req.url === '/v1/pair/code') {
     if (!PAIRING_SECRET || !SIGNING_SECRET || !equal(req.headers.authorization?.replace(/^Bearer /, '') || '', PAIRING_SECRET)) return json(res, 401, {error:'unauthorized'});
     if (limited(req)) return json(res, 429, {error:'rate_limited'});
