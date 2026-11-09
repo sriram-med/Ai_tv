@@ -1975,16 +1975,16 @@ public class HomeActivity extends Activity {
             old.animate().cancel();
             old.animate().translationZ(0).rotationX(0f).rotationY(0f)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
-                    .setDuration(lite ? 0 : 190).start();
+                    .setDuration(lite ? 0 : MotionPrefs.duration(this, 190)).start();
         }
         // Lifted on a soft shadow (no ring, like Plume): it shows on white and bright tiles too.
         if (v != null && v != old) {
             v.animate().cancel();
             // Subtle perspective on focused tiles; never rotate text enough to hurt readability.
             v.setCameraDistance(px(9000));
-            v.animate().translationZ(px(14)).rotationX(-1.5f).rotationY(1.2f)
+            v.animate().translationZ(px(MotionPrefs.level(this) == 0 ? 0 : 14)).rotationX(MotionPrefs.level(this) == 2 ? -1.5f : 0f).rotationY(MotionPrefs.level(this) == 2 ? 1.2f : 0f)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
-                    .setDuration(lite ? 0 : 220).start();
+                    .setDuration(lite ? 0 : MotionPrefs.duration(this, 220)).start();
         }
         focusedView = v;
         ringRadius = px(radiusDp);
@@ -2494,6 +2494,7 @@ public class HomeActivity extends Activity {
      * → Apps open from their tile turns it off. An idea from Plume (MIT).
      */
     private Bundle fromTile() {
+        if (MotionPrefs.level(this) == 0) return null;
         if (!prefs.getBoolean("open_animation", true) || focusedView == null || ring.rect.isEmpty()) return null;
         RectF r = ring.rect;
         return android.app.ActivityOptions.makeScaleUpAnimation(ring, Math.round(r.left), Math.round(r.top),
@@ -5936,6 +5937,14 @@ public class HomeActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (root != null && MotionPrefs.level(this) > 0) {
+            root.animate().cancel();
+            root.setAlpha(.92f);
+            root.setScaleX(.992f); root.setScaleY(.992f);
+            root.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
+                    .setDuration(MotionPrefs.duration(this, 260)).start();
+        }
         tabs[2].setText("New in " + Region.name(Region.country(this)));  // the country can change (Region)
         inFront = true;
         HomeState.inFront = true;
