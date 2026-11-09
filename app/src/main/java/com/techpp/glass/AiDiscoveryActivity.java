@@ -22,7 +22,7 @@ public final class AiDiscoveryActivity extends Activity {
     private static final String GATEWAY = "https://ai-tv-2-gpt-gateway.onrender.com";
     private LinearLayout results;
     private View contentRoot;
-    private boolean firstEntrance = true;
+    private TextView reaction;
     private EditText query;
     private EditText pairingCode;
     private TextView status;
@@ -47,7 +47,7 @@ public final class AiDiscoveryActivity extends Activity {
             v.animate().scaleX(focused?1.035f:1f).scaleY(focused?1.035f:1f)
                 .translationZ(focused?12f:0f).rotationX(focused?-1.2f:0f)
                 .setInterpolator(new DecelerateInterpolator(1.5f))
-                .setDuration(190).start();
+                .setDuration(MotionPrefs.duration(this, 190)).start();
         });
         item.setOnClickListener(v->action.run());
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=12;
@@ -62,7 +62,12 @@ public final class AiDiscoveryActivity extends Activity {
         screen.addView(label("Cinematic discovery  •  GPT-ranked picks  •  Privacy-first",16));
         TextView telugu=label("అదిరిపోయే సినిమా వెతుకుదామా?  ✨",17);
         telugu.setTextColor(0xFFB9C7FF);
-        screen.addView(telugu);
+        if (MotionPrefs.telugu(this)) screen.addView(telugu);
+        reaction=label("✨  సినిమా సందడి!  ✨",20);
+        reaction.setGravity(Gravity.CENTER);
+        reaction.setTextColor(0xFFFFD57E);
+        if (MotionPrefs.telugu(this)) screen.addView(reaction);
+        react("✨  సినిమా సందడి!  ✨");
         telugu.setPivotX(0f);
         telugu.setAlpha(.65f);
         telugu.animate().alpha(1f).translationX(8f).setDuration(650)
@@ -116,27 +121,51 @@ public final class AiDiscoveryActivity extends Activity {
             new AiTvPairingClient(this).clearSession();
             status.setText("Local session cleared. Use server revocation to invalidate remote access.");
         });
+        addAction(results,"MOTION INTENSITY  •  TAP TO CHANGE",()->{
+            int next=(MotionPrefs.level(this)+1)%3;
+            MotionPrefs.setLevel(this,next);
+            status.setText("Motion: "+(next==0?"Off":next==1?"Subtle":"Full")+". Reopen this screen to preview.");
+        });
+        addAction(results,"TELUGU REACTIONS  •  ON / OFF",()->{
+            boolean enabled=!MotionPrefs.telugu(this);
+            MotionPrefs.setTelugu(this,enabled);
+            status.setText("Telugu reactions: "+(enabled?"On":"Off")+". Reopen to apply.");
+        });
         addAction(results,"ABOUT THIS BUILD",()->status.setText("Metal UI beta: verified catalog and GPT discovery."));
         contentRoot=screen;
         setContentView(screen);
+        if (MotionPrefs.level(this) == 0) return;
         screen.setAlpha(0f);
         screen.setScaleX(.975f); screen.setScaleY(.975f);
         screen.setTranslationY(18f);
         screen.post(()->screen.animate().alpha(1f).scaleX(1f).scaleY(1f)
             .translationY(0f).setInterpolator(new DecelerateInterpolator(1.8f))
-            .setDuration(320).start());
+            .setDuration(MotionPrefs.duration(this, 320)).start());
     }
     @Override public void onBackPressed() {
         if (contentRoot == null || isFinishing()) { super.onBackPressed(); return; }
+        if (MotionPrefs.level(this) == 0) { finish(); return; }
         contentRoot.animate().cancel();
         contentRoot.animate().alpha(0f).scaleX(.975f).scaleY(.975f)
             .translationY(12f).setInterpolator(new DecelerateInterpolator())
-            .setDuration(160).withEndAction(this::finish).start();
+            .setDuration(MotionPrefs.duration(this, 160)).withEndAction(this::finish).start();
     }
 
     @Override public void finish() {
         super.finish();
         overridePendingTransition(R.anim.mac_home_restore, R.anim.mac_window_close);
+    }
+
+    private void react(String message) {
+        if (reaction == null || !MotionPrefs.telugu(this)) return;
+        reaction.setText(message);
+        if (MotionPrefs.level(this) == 0) return;
+        reaction.animate().cancel();
+        reaction.setAlpha(0f);
+        reaction.setScaleX(.9f); reaction.setScaleY(.9f);
+        reaction.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setInterpolator(new DecelerateInterpolator(2f))
+                .setDuration(MotionPrefs.duration(this, 400)).start();
     }
 
     private void discover() {
@@ -159,10 +188,12 @@ public final class AiDiscoveryActivity extends Activity {
         }
         if (catalog.length()==0) {status.setText("No verified streaming titles cached yet. Refresh Trending on Home first.");return;}
         status.setText("సినిమా మ్యాజిక్ మొదలైంది! ✨  Finding recommendations...");
+        react("🔎  వెతుకుతున్నాం...  ✨");
         client.recommend(GATEWAY,pairing.currentToken(),query.getText().toString(),catalog,
             new AiRecommendationClient.Callback() {
                 @Override public void onSuccess(JSONArray picks) {runOnUiThread(()->{
                     results.removeAllViews();status.setText("Recommendations");
+                    react("🎉  దొరికేశాయి!  🎬");
                     for(int i=0;i<picks.length();i++) {
                         JSONObject item=picks.optJSONObject(i);
                         if(item!=null) {
@@ -172,7 +203,9 @@ public final class AiDiscoveryActivity extends Activity {
                         }
                     }
                 });}
-                @Override public void onError(String reason) {runOnUiThread(()->status.setText(reason));}
+                @Override public void onError(String reason) {runOnUiThread(()->{
+                    status.setText(reason); react("అయ్యో! మళ్లీ ప్రయత్నిద్దాం 😅");
+                });}
             });
     }
     private void launchProvider(Trending.Pick pick) {
