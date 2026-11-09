@@ -131,18 +131,44 @@ public final class AiDiscoveryActivity extends Activity {
                         JSONObject item=picks.optJSONObject(i);
                         if(item!=null) {
                             Trending.Pick pick=catalogPicks.get(item.optString("id"));
-                            if(pick!=null)addAction(results,pick.title+"  •  "+item.optString("reason"),()->{
-                                try {
-                                    android.content.Intent launch=getPackageManager().getLeanbackLaunchIntentForPackage(pick.pkg);
-                                    if(launch==null) launch=getPackageManager().getLaunchIntentForPackage(pick.pkg);
-                                    if(launch!=null) startActivity(launch);
-                                    else status.setText("Streaming app is not available.");
-                                } catch(Exception ignored) {status.setText("Unable to open streaming app.");}
-                            });
+                            if(pick!=null)addAction(results,pick.title+"  •  "+item.optString("reason"),
+                                ()->showSources(pick));
                         }
                     }
                 });}
                 @Override public void onError(String reason) {runOnUiThread(()->status.setText(reason));}
             });
     }
+    private void launchProvider(Trending.Pick pick) {
+        try {
+            android.content.Intent intent=getPackageManager().getLeanbackLaunchIntentForPackage(pick.pkg);
+            if(intent==null)intent=getPackageManager().getLaunchIntentForPackage(pick.pkg);
+            if(intent!=null)startActivity(intent);
+            else status.setText("Streaming app is not installed.");
+        }catch(Exception e){status.setText("Unable to launch provider.");}
+    }
+    private void showSources(Trending.Pick pick) {
+        status.setText("Resolving exact title destinations...");
+        new StreamingSourceResolver().resolve(GATEWAY,new AiTvPairingClient(this).currentToken(),
+            pick.id,pick.kind,"IN",new StreamingSourceResolver.Callback(){
+                @Override public void onSources(JSONArray sources){runOnUiThread(()->{
+                    results.removeAllViews();
+                    status.setText(sources.length()==0?"No verified title links for this region.":"Select a streaming source");
+                    for(int i=0;i<sources.length();i++){
+                        JSONObject source=sources.optJSONObject(i);
+                        if(source==null)continue;
+                        addAction(results,"WATCH ON "+source.optString("name")+" ("+source.optString("type")+")",()->{
+                            if(!StreamingSourceResolver.open(AiDiscoveryActivity.this,source,pick.pkg))
+                                status.setText("No supported exact-title link. Use provider app below.");
+                        });
+                    }
+                    addAction(results,"OPEN "+pick.service+" APP (FALLBACK)",()->launchProvider(pick));
+                });}
+                @Override public void onError(String message){runOnUiThread(()->{
+                    results.removeAllViews();status.setText(message);
+                    addAction(results,"OPEN PROVIDER APP",()->launchProvider(pick));
+                });}
+            });
+    }
+
 }
