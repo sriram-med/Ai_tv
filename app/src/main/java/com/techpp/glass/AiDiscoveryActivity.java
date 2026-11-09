@@ -103,6 +103,11 @@ public final class AiDiscoveryActivity extends Activity {
         addAction(results,"ABOUT THIS BUILD",()->status.setText("Metal UI beta: verified catalog and GPT discovery."));
         setContentView(screen);
     }
+    @Override public void finish() {
+        super.finish();
+        overridePendingTransition(R.anim.mac_home_restore, R.anim.mac_window_close);
+    }
+
     private void discover() {
         AiTvPairingClient pairing=new AiTvPairingClient(this);
         if (!pairing.hasSession()) {status.setText("Pair your TV first. Never enter an OpenAI API key here.");return;}
