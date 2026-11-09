@@ -6032,8 +6032,17 @@ public class HomeActivity extends Activity {
             boolean news = SelfUpdate.checkIfStale(this);
             runOnUiThread(() -> {
                 onUpdates();
-                if (news) Toast.makeText(this, "Talkies " + SelfUpdate.available(this) + " is out: the bell, top right, installs it",
-                        Toast.LENGTH_LONG).show();
+                if (news && !isFinishing()) {
+                    String version = SelfUpdate.available(this);
+                    if (version != null) new android.app.AlertDialog.Builder(this)
+                        .setTitle("AI TV 2.0 • Update available")
+                        .setMessage("Version " + version + " is ready. Download the verified APK and open Android's installer?")
+                        .setPositiveButton("Download & install", (dialog, which) ->
+                            SelfUpdate.checkAndInstall(this, message ->
+                                runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show())))
+                        .setNegativeButton("Later", null)
+                        .show();
+                }
             });
         });
         if (prefs.getBoolean("youtube_art", false)) RecentStore.upgradeArtwork(this, () -> {
