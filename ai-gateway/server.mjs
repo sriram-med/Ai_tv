@@ -1,18 +1,21 @@
 import { createServer } from 'node:http';
-import { randomUUID, timingSafeEqual, randomBytes, createHmac } from 'node:crypto';
+import { randomUUID, timingSafeEqual, randomBytes, createHmac, createHash } from 'node:crypto';
+import pg from 'pg';
 
 const PORT = Number(process.env.PORT || 8080);
 const KEY = process.env.OPENAI_API_KEY;
 const DEVICE_TOKEN = process.env.AI_TV_DEVICE_TOKEN;
 const PAIRING_SECRET = process.env.AI_TV_PAIRING_SECRET;
 const SIGNING_SECRET = process.env.AI_TV_SIGNING_SECRET;
-const pairingCodes = new Map();
-const pairedDevices = new Map();
+const db = process.env.DATABASE_URL ? new pg.Pool({connectionString:process.env.DATABASE_URL, ssl:{rejectUnauthorized:false}, max:4}) : null;
+const hashCode = value => createHash('sha256').update(value).digest('hex');
+async function initDb() { if (!db) return; await db.query(`CREATE TABLE IF NOT EXISTS ai_tv_devices(id UUID PRIMARY KEY, created_at TIMESTAMPTZ DEFAULT now(), revoked_at TIMESTAMPTZ); CREATE TABLE IF NOT EXISTS ai_tv_pair_codes(code_hash TEXT PRIMARY KEY, expires_at TIMESTAMPTZ NOT NULL);`); }
+initDb().catch(e=>console.error('Database initialization failed:',e.message));
 const MAX_DEVICES = 20;
 const equal = (a,b) => { const x=Buffer.from(String(a)), y=Buffer.from(String(b)); return x.length===y.length && timingSafeEqual(x,y); };
 const sign = (payload) => createHmac('sha256', SIGNING_SECRET).update(payload).digest('base64url');
 function issueToken(deviceId) { const payload=Buffer.from(JSON.stringify({deviceId, exp:Date.now()+3600000})).toString('base64url'); return payload+'.'+sign(payload); }
-function validToken(token) { if(!SIGNING_SECRET || !token || !token.includes('.')) return false; const [payload,mac]=token.split('.'); if(!equal(sign(payload),mac)) return false; try { const data=JSON.parse(Buffer.from(payload,'base64url').toString()); return data.exp>Date.now() && pairedDevices.has(data.deviceId); } catch { return false; } }
+async function validToken(token) { if(!SIGNING_SECRET || !token || !token.includes('.')) return false; const [payload,mac]=token.split('.'); if(!equal(sign(payload),mac)) return false; try { const data=JSON.parse(Buffer.from(payload,'base64url').toString()); if (data.exp<=Date.now() || !db) return false; const r=await db.query('SELECT 1 FROM ai_tv_devices WHERE id=$1 AND revoked_at IS NULL',[data.deviceId]); return r.rowCount===1; } catch { return false; } }
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '';
@@ -25,8 +28,8 @@ function json(res, status, data) {
     ...(ALLOWED_ORIGIN ? { 'access-control-allow-origin': ALLOWED_ORIGIN } : {}) });
   res.end(JSON.stringify(data));
 }
-function authorized(req) {
-  if (validToken(req.headers.authorization?.replace(/^Bearer /, '') || '')) return true;
+async function authorized(req) {
+  if (await validToken(req.headers.authorization?.replace(/^Bearer /, '') || '')) return true;
   if (!DEVICE_TOKEN) return false;
   const supplied = req.headers.authorization?.replace(/^Bearer /, '') || '';
   const a = Buffer.from(supplied), b = Buffer.from(DEVICE_TOKEN);
@@ -48,33 +51,44 @@ async function readJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 createServer(async (req, res) => {
-  if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, configured: Boolean(KEY && (PAIRING_SECRET && SIGNING_SECRET || DEVICE_TOKEN)) });
+  if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, configured: Boolean(KEY && PAIRING_SECRET && SIGNING_SECRET && db) });
   if (req.method === 'POST' && req.url === '/v1/pair/code') {
     if (!PAIRING_SECRET || !SIGNING_SECRET || !equal(req.headers.authorization?.replace(/^Bearer /, '') || '', PAIRING_SECRET)) return json(res, 401, {error:'unauthorized'});
     if (limited(req)) return json(res, 429, {error:'rate_limited'});
-    if (pairingCodes.size > 100) pairingCodes.clear();
+    if (!db) return json(res,503,{error:'database_unavailable'});
     const code = randomBytes(5).toString('hex').toUpperCase();
-    pairingCodes.set(code, Date.now()+300000);
+    try { await db.query('INSERT INTO ai_tv_pair_codes(code_hash,expires_at) VALUES ($1,now()+interval \'5 minutes\')',[hashCode(code)]); } catch {return json(res,503,{error:'database_unavailable'});}
     return json(res, 200, {code, expiresIn:300});
   }
   if (req.method === 'POST' && req.url === '/v1/pair/exchange') {
     if (!SIGNING_SECRET || limited(req)) return json(res, 429, {error:'pairing_unavailable'});
     let body; try { body=await readJson(req); } catch {return json(res,400,{error:'invalid_request'});}
-    const code=String(body.code||'').toUpperCase(); const expires=pairingCodes.get(code);
-    if (!expires || expires<Date.now() || pairedDevices.size>=MAX_DEVICES) return json(res,403,{error:'invalid_or_expired_code'});
-    pairingCodes.delete(code);
-    const deviceId=randomUUID(); pairedDevices.set(deviceId, Date.now());
+    const code=String(body.code||'').toUpperCase();
+    if (!/^[0-9A-F]{10}$/.test(code) || !db) return json(res,403,{error:'invalid_or_expired_code'});
+    const client=await db.connect(); let deviceId;
+    try { await client.query('BEGIN');
+      const used=await client.query('DELETE FROM ai_tv_pair_codes WHERE code_hash=$1 AND expires_at>now() RETURNING code_hash',[hashCode(code)]);
+      const count=await client.query('SELECT COUNT(*)::int AS total FROM ai_tv_devices WHERE revoked_at IS NULL');
+      if (!used.rowCount || count.rows[0].total>=MAX_DEVICES) {await client.query('ROLLBACK');return json(res,403,{error:'invalid_or_expired_code'});}
+      deviceId=randomUUID(); await client.query('INSERT INTO ai_tv_devices(id) VALUES ($1)',[deviceId]); await client.query('COMMIT');
+    } catch {await client.query('ROLLBACK');return json(res,503,{error:'database_unavailable'});} finally {client.release();}
     return json(res,200,{accessToken:issueToken(deviceId), expiresIn:3600, deviceId});
   }
   if (req.method === 'POST' && req.url === '/v1/pair/refresh') {
     if (!SIGNING_SECRET || limited(req)) return json(res,429,{error:'rate_limited'});
     const token=req.headers.authorization?.replace(/^Bearer /, '') || '';
-    if (!validToken(token)) return json(res,401,{error:'unauthorized'});
+    if (!await validToken(token)) return json(res,401,{error:'unauthorized'});
     const data=JSON.parse(Buffer.from(token.split('.')[0],'base64url').toString());
     return json(res,200,{accessToken:issueToken(data.deviceId),expiresIn:3600});
   }
+  if (req.method === 'POST' && req.url === '/v1/pair/revoke') {
+    if (!db || !PAIRING_SECRET || !equal(req.headers.authorization?.replace(/^Bearer /, '') || '', PAIRING_SECRET)) return json(res,401,{error:'unauthorized'});
+    let body; try {body=await readJson(req);} catch {return json(res,400,{error:'invalid_request'});}
+    if (!/^[0-9a-f-]{36}$/.test(String(body.deviceId||''))) return json(res,400,{error:'invalid_device'});
+    try {const r=await db.query('UPDATE ai_tv_devices SET revoked_at=now() WHERE id=$1 AND revoked_at IS NULL RETURNING id',[body.deviceId]);return json(res,200,{revoked:r.rowCount===1});} catch {return json(res,503,{error:'database_unavailable'});}
+  }
   if (req.url !== '/v1/recommend' || req.method !== 'POST') return json(res, 404, { error: 'not_found' });
-  if (!authorized(req)) return json(res, 401, { error: 'unauthorized' });
+  if (!await authorized(req)) return json(res, 401, { error: 'unauthorized' });
   if (limited(req)) return json(res, 429, { error: 'rate_limited' });
   if (!KEY) return json(res, 503, { error: 'ai_not_configured' });
   let body;
