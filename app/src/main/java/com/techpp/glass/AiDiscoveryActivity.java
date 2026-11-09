@@ -150,15 +150,16 @@ public final class AiDiscoveryActivity extends Activity {
     private void showSources(Trending.Pick pick) {
         status.setText("Resolving exact title destinations...");
         new StreamingSourceResolver().resolve(GATEWAY,new AiTvPairingClient(this).currentToken(),
-            pick.id,pick.kind,"IN",new StreamingSourceResolver.Callback(){
+            pick.id,pick.kind,Region.country(AiDiscoveryActivity.this),new StreamingSourceResolver.Callback(){
                 @Override public void onSources(JSONArray sources){runOnUiThread(()->{
                     results.removeAllViews();
-                    status.setText(sources.length()==0?"No verified title links for this region.":"Select a streaming source");
+                    status.setText(sources.length()==0?"No verified title links for this region. Data by Watchmode.com.":"Select a streaming source • Data by Watchmode.com");
                     for(int i=0;i<sources.length();i++){
                         JSONObject source=sources.optJSONObject(i);
                         if(source==null)continue;
                         addAction(results,"WATCH ON "+source.optString("name")+" ("+source.optString("type")+")",()->{
-                            if(!StreamingSourceResolver.open(AiDiscoveryActivity.this,source,pick.pkg))
+                            if(!StreamingSourceResolver.open(AiDiscoveryActivity.this,source,
+                                source.optString("name").equalsIgnoreCase(pick.service)?pick.pkg:""))
                                 status.setText("No supported exact-title link. Use provider app below.");
                         });
                     }
