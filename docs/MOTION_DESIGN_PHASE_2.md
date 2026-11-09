@@ -25,8 +25,8 @@
 - [x] AI Discovery zoom/fade opening and closing.
 - [x] 3D-style focus on AI Discovery actions.
 - [x] Launcher-wide subtle 3D focus depth and spring scale.
-- [ ] Animated return-to-home treatment with measured frame pacing.
-- [ ] Licensed/original Telugu reaction asset pack.
-- [ ] Preferences: motion level (full / subtle / off) and Telugu reactions on/off.
+- [x] Lightweight return-to-home animation (device frame pacing still unmeasured).
+- [x] Original animated GIF sparkle asset and Telugu reaction captions (further variants pending).
+- [x] Discovery-screen preferences: motion level (full / subtle / off) and Telugu reactions on/off.
 - [ ] Performance profiling on low-end Android TV and real-device QA.
 - [ ] Bump versionName/versionCode only when ready to publish the next tested release.
