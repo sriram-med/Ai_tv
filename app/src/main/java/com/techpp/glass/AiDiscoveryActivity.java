@@ -1,6 +1,9 @@
 package com.techpp.glass;
 
 import android.app.Activity;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.view.animation.DecelerateInterpolator;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -18,6 +21,8 @@ import org.json.JSONObject;
 public final class AiDiscoveryActivity extends Activity {
     private static final String GATEWAY = "https://ai-tv-2-gpt-gateway.onrender.com";
     private LinearLayout results;
+    private View contentRoot;
+    private boolean firstEntrance = true;
     private EditText query;
     private EditText pairingCode;
     private TextView status;
@@ -38,7 +43,11 @@ public final class AiDiscoveryActivity extends Activity {
         item.setOnFocusChangeListener((v,focused)->{
             v.setBackground(panel(focused?0xFF2456A5:0xFF152038,
                     focused?0xFF00E5FF:0xFF3464B2));
-            v.animate().scaleX(focused?1.04f:1f).scaleY(focused?1.04f:1f).setDuration(170).start();
+            v.animate().cancel();
+            v.animate().scaleX(focused?1.035f:1f).scaleY(focused?1.035f:1f)
+                .translationZ(focused?12f:0f).rotationX(focused?-1.2f:0f)
+                .setInterpolator(new DecelerateInterpolator(1.5f))
+                .setDuration(190).start();
         });
         item.setOnClickListener(v->action.run());
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=12;
@@ -101,8 +110,23 @@ public final class AiDiscoveryActivity extends Activity {
             status.setText("Local session cleared. Use server revocation to invalidate remote access.");
         });
         addAction(results,"ABOUT THIS BUILD",()->status.setText("Metal UI beta: verified catalog and GPT discovery."));
+        contentRoot=screen;
         setContentView(screen);
+        screen.setAlpha(0f);
+        screen.setScaleX(.975f); screen.setScaleY(.975f);
+        screen.setTranslationY(18f);
+        screen.post(()->screen.animate().alpha(1f).scaleX(1f).scaleY(1f)
+            .translationY(0f).setInterpolator(new DecelerateInterpolator(1.8f))
+            .setDuration(320).start());
     }
+    @Override public void onBackPressed() {
+        if (contentRoot == null || isFinishing()) { super.onBackPressed(); return; }
+        contentRoot.animate().cancel();
+        contentRoot.animate().alpha(0f).scaleX(.975f).scaleY(.975f)
+            .translationY(12f).setInterpolator(new DecelerateInterpolator())
+            .setDuration(160).withEndAction(this::finish).start();
+    }
+
     @Override public void finish() {
         super.finish();
         overridePendingTransition(R.anim.mac_home_restore, R.anim.mac_window_close);
