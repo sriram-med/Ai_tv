@@ -130,8 +130,8 @@ final class SelfUpdate {
     /** The latest release from GitHub; remembers its version and when it looked. */
     private static JSONObject latest(Context c) throws Exception {
         JSONObject release = new JSONObject(get(LATEST));
-        String v = release.optString("tag_name").replaceFirst("^[vV]", "");
-        if (v.isEmpty()) throw new IOException("the latest release has no tag");
+        String v = release.optString("tag_name").replaceFirst("^(?:ai-tv-)?[vV]", "");
+        if (!v.matches("[0-9]+\\.[0-9]+\\.[0-9]+")) throw new IOException("invalid release version");
         prefs(c).edit().putString("latest", v).putLong("checked", System.currentTimeMillis()).apply();
         Log.i(TAG, "Latest release " + v + ", installed " + installed(c));
         return release;
