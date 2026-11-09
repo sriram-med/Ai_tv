@@ -60,6 +60,13 @@ public final class AiDiscoveryActivity extends Activity {
         TextView heading=label("AI TV 2.0  /  DISCOVER",30);heading.setTypeface(null,Typeface.BOLD);
         heading.setTextColor(0xFF00E5FF);screen.addView(heading);
         screen.addView(label("Cinematic discovery  •  GPT-ranked picks  •  Privacy-first",16));
+        TextView telugu=label("అదిరిపోయే సినిమా వెతుకుదామా?  ✨",17);
+        telugu.setTextColor(0xFFB9C7FF);
+        screen.addView(telugu);
+        telugu.setPivotX(0f);
+        telugu.setAlpha(.65f);
+        telugu.animate().alpha(1f).translationX(8f).setDuration(650)
+            .setInterpolator(new DecelerateInterpolator()).start();
         query=new EditText(this);query.setSingleLine(true);query.setTextColor(Color.WHITE);
         query.setHintTextColor(0xFFB3C7E6);query.setHint("What would you like to watch?");
         query.setBackground(panel(0xFF17223C,0xFF005CFF));query.setPadding(24,18,24,18);
@@ -151,7 +158,7 @@ public final class AiDiscoveryActivity extends Activity {
             if (catalog.length()>=40) break;
         }
         if (catalog.length()==0) {status.setText("No verified streaming titles cached yet. Refresh Trending on Home first.");return;}
-        status.setText("Finding recommendations...");
+        status.setText("సినిమా మ్యాజిక్ మొదలైంది! ✨  Finding recommendations...");
         client.recommend(GATEWAY,pairing.currentToken(),query.getText().toString(),catalog,
             new AiRecommendationClient.Callback() {
                 @Override public void onSuccess(JSONArray picks) {runOnUiThread(()->{
