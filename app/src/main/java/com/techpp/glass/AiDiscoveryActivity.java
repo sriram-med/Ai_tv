@@ -91,7 +91,16 @@ public final class AiDiscoveryActivity extends Activity {
             AiTvPairingClient pairing=new AiTvPairingClient(this);
             status.setText(pairing.hasSession()?"TV paired. GPT ready when catalog is available.":"TV not paired.");
         });
-        addAction(results,"ABOUT THIS BUILD",()->status.setText("Metal UI preview. Catalog integration is in progress."));
+        addAction(results,"RENEW SESSION",()->new AiTvPairingClient(this).refresh(GATEWAY,
+            new AiTvPairingClient.Callback() {
+                @Override public void onPaired(){runOnUiThread(()->status.setText("Session renewed."));}
+                @Override public void onError(String message){runOnUiThread(()->status.setText(message));}
+            }));
+        addAction(results,"FORGET THIS TV SESSION",()->{
+            new AiTvPairingClient(this).clearSession();
+            status.setText("Local session cleared. Use server revocation to invalidate remote access.");
+        });
+        addAction(results,"ABOUT THIS BUILD",()->status.setText("Metal UI beta: verified catalog and GPT discovery."));
         setContentView(screen);
     }
     private void discover() {
