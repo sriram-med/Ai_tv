@@ -10,6 +10,8 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.widget.*;
 import org.json.JSONArray;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.json.JSONObject;
 
 /** 10-foot, DPAD-first Metal UI discovery screen. */
@@ -19,6 +21,7 @@ public final class AiDiscoveryActivity extends Activity {
     private EditText query;
     private EditText pairingCode;
     private TextView status;
+    private final Map<String,Trending.Pick> catalogPicks = new LinkedHashMap<>();
     private final AiRecommendationClient client = new AiRecommendationClient();
 
     private GradientDrawable panel(int fill, int stroke) {
@@ -94,9 +97,22 @@ public final class AiDiscoveryActivity extends Activity {
     private void discover() {
         AiTvPairingClient pairing=new AiTvPairingClient(this);
         if (!pairing.hasSession()) {status.setText("Pair your TV first. Never enter an OpenAI API key here.");return;}
-        // Catalog must come from verified providers; never invent titles to satisfy the AI.
         JSONArray catalog=new JSONArray();
-        if (catalog.length()==0) {status.setText("Verified catalog adapter not yet connected.");return;}
+        catalogPicks.clear();
+        for (Trending.Pick pick : new Trending(this).cached()) {
+            if (pick.title == null || pick.title.isEmpty() || pick.pkg == null || pick.pkg.isEmpty()) continue;
+            String id=pick.key();
+            if (catalogPicks.containsKey(id)) continue;
+            try {
+                getPackageManager().getPackageInfo(pick.pkg,0);
+                catalogPicks.put(id,pick);
+                catalog.put(new JSONObject().put("id",id).put("title",pick.title)
+                    .put("overview",pick.meta == null ? "" : pick.meta)
+                    .put("providers",new JSONArray().put(pick.service == null ? "" : pick.service)));
+            } catch (Exception ignored) { }
+            if (catalog.length()>=40) break;
+        }
+        if (catalog.length()==0) {status.setText("No verified streaming titles cached yet. Refresh Trending on Home first.");return;}
         status.setText("Finding recommendations...");
         client.recommend(GATEWAY,pairing.currentToken(),query.getText().toString(),catalog,
             new AiRecommendationClient.Callback() {
@@ -104,7 +120,17 @@ public final class AiDiscoveryActivity extends Activity {
                     results.removeAllViews();status.setText("Recommendations");
                     for(int i=0;i<picks.length();i++) {
                         JSONObject item=picks.optJSONObject(i);
-                        if(item!=null)addAction(results,item.optString("id")+" — "+item.optString("reason"),()->{});
+                        if(item!=null) {
+                            Trending.Pick pick=catalogPicks.get(item.optString("id"));
+                            if(pick!=null)addAction(results,pick.title+"  •  "+item.optString("reason"),()->{
+                                try {
+                                    android.content.Intent launch=getPackageManager().getLeanbackLaunchIntentForPackage(pick.pkg);
+                                    if(launch==null) launch=getPackageManager().getLaunchIntentForPackage(pick.pkg);
+                                    if(launch!=null) startActivity(launch);
+                                    else status.setText("Streaming app is not available.");
+                                } catch(Exception ignored) {status.setText("Unable to open streaming app.");}
+                            });
+                        }
                     }
                 });}
                 @Override public void onError(String reason) {runOnUiThread(()->status.setText(reason));}
