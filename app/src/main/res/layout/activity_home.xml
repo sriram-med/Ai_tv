@@ -10,6 +10,14 @@
     <com.techpp.glass.Backdrop android:id="@+id/backdrop" android:layout_width="match_parent"
         android:layout_height="match_parent" android:importantForAccessibility="no" />
 
+    <!-- AI TV: subtle cinematic lighting, behind all interactive elements. -->
+    <com.techpp.glass.AmbientGlow
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
+
     <FrameLayout
         android:id="@+id/page"
         android:layout_width="match_parent"
