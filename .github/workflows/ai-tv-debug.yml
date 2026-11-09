@@ -1,7 +1,7 @@
 name: Android TV debug APK
 on:
   push:
-    branches: [feature/ai-tv-foundation]
+    branches: [feature/ai-tv-foundation, feature/ai-tv-2-native-gpt]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -30,6 +30,11 @@ jobs:
           echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
           ls -l gradlew gradle/wrapper/gradle-wrapper.jar
           bash ./gradlew --version
+      - name: Validate GPT gateway JavaScript
+        run: |
+          node --check ai-gateway/server.mjs
+          node --check ai-gateway/server.test.mjs
+          cd ai-gateway && npm install --omit=dev && npm test
       - name: Assemble debug APK
         run: bash ./gradlew :app:assembleDebug --no-daemon --stacktrace --console=plain
       - name: Upload APK
