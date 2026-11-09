@@ -30,7 +30,7 @@ jobs:
         run: |
           node --check ai-gateway/server.mjs
           cd ai-gateway
-          npm ci --omit=dev
+          npm install --omit=dev
           npm test
       - name: Compile Android debug APK
         run: bash ./gradlew :app:assembleDebug --no-daemon --console=plain
