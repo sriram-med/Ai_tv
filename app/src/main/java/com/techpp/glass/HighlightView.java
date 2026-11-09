@@ -17,6 +17,7 @@ public class HighlightView extends View {
     final RectF rect = new RectF();
     private float radius;
     private boolean day, moving, always;
+    private boolean premiumFocus = true;
     private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG), edge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final float dp;
     private final RectF tmp = new RectF();
@@ -45,15 +46,25 @@ public class HighlightView extends View {
 
     void setAlways(boolean a) { always = a; invalidate(); }
 
+    /** Premium focus halo without adding focusable overlays or changing DPAD handling. */
+    void setPremiumFocus(boolean enabled) { premiumFocus = enabled; invalidate(); }
+
     @Override
     protected void onDraw(Canvas canvas) {
-        if ((!moving && !always) || rect.isEmpty()) return;
-        float w = 3 * dp;
+        if ((!moving && !always && !premiumFocus) || rect.isEmpty()) return;
+        float w = (moving || always) ? 3 * dp : 1.5f * dp;
+        if (!moving && !always) {
+            ring.setColor(day ? 0xAA223B68 : 0xBBD4E7FF);
+            edge.setColor(day ? 0x33223B68 : 0x446C91FF);
+        } else {
+            ring.setColor(0xFFFFFFFF);
+            edge.setColor(0x55000000);
+        }
         ring.setStrokeWidth(w);
         tmp.set(rect);
         tmp.inset(-w / 2, -w / 2);
         canvas.drawRoundRect(tmp, radius + w / 2, radius + w / 2, ring);
-        if (day || always) {
+        if (day || always || premiumFocus) {
             tmp.inset(-w / 2 - dp / 2, -w / 2 - dp / 2);
             canvas.drawRoundRect(tmp, radius + w + dp / 2, radius + w + dp / 2, edge);
         }
