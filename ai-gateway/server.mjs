@@ -20,6 +20,7 @@ async function validToken(token) { if(!SIGNING_SECRET || !token || !token.includ
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '';
 const MAX_BODY = 16 * 1024;
+function validSourceUrl(value) {try {const u=new URL(value);return u.protocol==='https:'?u.href:null;}catch{return null;}}
 const rate = new Map();
 
 function json(res, status, data) {
@@ -88,6 +89,37 @@ createServer(async (req, res) => {
     let body; try {body=await readJson(req);} catch {return json(res,400,{error:'invalid_request'});}
     if (!/^[0-9a-f-]{36}$/.test(String(body.deviceId||''))) return json(res,400,{error:'invalid_device'});
     try {const r=await db.query('UPDATE ai_tv_devices SET revoked_at=now() WHERE id=$1 AND revoked_at IS NULL RETURNING id',[body.deviceId]);return json(res,200,{revoked:r.rowCount===1});} catch {return json(res,503,{error:'database_unavailable'});}
+  }
+  if (req.method === 'GET' && req.url?.startsWith('/v1/sources?')) {
+    if (!await authorized(req)) return json(res,401,{error:'unauthorized'});
+    if (limited(req)) return json(res,429,{error:'rate_limited'});
+    if (!process.env.WATCHMODE_API_KEY) return json(res,503,{error:'source_provider_not_configured'});
+    const params=new URL(req.url,'http://localhost').searchParams;
+    const id=Number(params.get('tmdbId'));
+    const kind=params.get('kind');
+    const region=String(params.get('region')||'IN').toUpperCase();
+    if (!Number.isSafeInteger(id)||id<=0||!['movie','tv'].includes(kind)||!/^[A-Z]{2}$/.test(region))
+      return json(res,400,{error:'invalid_title'});
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),10000);
+    try {
+      const api=new URL('https://api.watchmode.com/v1/title/'+kind+'-'+id+'/sources/');
+      api.searchParams.set('apiKey',process.env.WATCHMODE_API_KEY);
+      api.searchParams.set('regions',region);
+      const response=await fetch(api,{signal:controller.signal});
+      if(!response.ok)return json(res,502,{error:'source_provider_error'});
+      const raw=await response.json();
+      const sources=(Array.isArray(raw)?raw:[]).filter(x=>x.region===region)
+        .filter(x=>['sub','free','tve'].includes(x.type))
+        .slice(0,25).map(x=>({
+          name:String(x.name||'').slice(0,80),type:x.type,region,
+          android_tv_url:validSourceUrl(x.android_tv_url),
+          android_url:validSourceUrl(x.android_url),
+          web_url:validSourceUrl(x.web_url)
+        }));
+      return json(res,200,{tmdbId:id,kind,region,sources});
+    } catch{return json(res,502,{error:'source_lookup_unavailable'});}
+    finally {clearTimeout(timeout);}
   }
   if (req.url !== '/v1/recommend' || req.method !== 'POST') return json(res, 404, { error: 'not_found' });
   if (!await authorized(req)) return json(res, 401, { error: 'unauthorized' });
