@@ -17,6 +17,7 @@ public final class AiDiscoveryActivity extends Activity {
     private static final String GATEWAY = "https://ai-tv-2-gpt-gateway.onrender.com";
     private LinearLayout results;
     private EditText query;
+    private EditText pairingCode;
     private TextView status;
     private final AiRecommendationClient client = new AiRecommendationClient();
 
@@ -58,6 +59,26 @@ public final class AiDiscoveryActivity extends Activity {
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-2);sp.setMargins(0,18,0,18);
         actions.addView(search,sp);search.setOnClickListener(v->discover());
         search.setOnFocusChangeListener((v,f)->v.animate().scaleX(f?1.06f:1f).setDuration(140).start());
+        pairingCode=new EditText(this);
+        pairingCode.setSingleLine(true); pairingCode.setTextColor(Color.WHITE);
+        pairingCode.setHintTextColor(0xFFB3C7E6);pairingCode.setHint("One-time pairing code");
+        pairingCode.setBackground(panel(0xFF17223C,0xFF005CFF));
+        pairingCode.setPadding(24,12,24,12);screen.addView(pairingCode);
+        TextView pairButton=label("PAIR THIS TV",19);
+        pairButton.setFocusable(true);pairButton.setBackground(panel(0xFF2456A5,0xFF00E5FF));
+        screen.addView(pairButton);
+        pairButton.setOnClickListener(v->{
+            pairButton.setEnabled(false);
+            new AiTvPairingClient(this).exchange(GATEWAY,pairingCode.getText().toString(),
+                new AiTvPairingClient.Callback() {
+                    @Override public void onPaired() {runOnUiThread(()->{
+                        status.setText("TV paired successfully.");pairButton.setEnabled(true);pairingCode.setText("");
+                    });}
+                    @Override public void onError(String error) {runOnUiThread(()->{
+                        status.setText(error);pairButton.setEnabled(true);
+                    });}
+                });
+        });
         status=label("Connect a TV using a one-time pairing code to enable AI.",17);
         screen.addView(status);
         ScrollView scroll=new ScrollView(this);results=new LinearLayout(this);
