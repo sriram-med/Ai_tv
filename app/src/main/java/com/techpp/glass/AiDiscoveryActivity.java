@@ -164,6 +164,9 @@ public final class AiDiscoveryActivity extends Activity {
                         });
                     }
                     addAction(results,"OPEN "+pick.service+" APP (FALLBACK)",()->launchProvider(pick));
+                    addAction(results,"SOURCE DATA: WATCHMODE.COM",()->startActivity(
+                        new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://www.watchmode.com/"))));
                 });}
                 @Override public void onError(String message){runOnUiThread(()->{
                     results.removeAllViews();status.setText(message);
