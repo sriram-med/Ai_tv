@@ -37,7 +37,7 @@ public class HighlightView extends View {
     void setRing(RectF r, float radiusPx) {
         rect.set(r);
         radius = radiusPx;
-        if (moving || always) invalidate();
+        if (moving || always || premiumFocus) invalidate();
     }
 
     void setDay(boolean d) { day = d; invalidate(); }
