@@ -96,6 +96,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".AiDiscoveryActivity" android:exported="false" android:screenOrientation="landscape" />
+
         <!-- Control Center: Turn off now / sleep timer (the "lock" action); typing a match into JioHotstar's search. -->
         <service
             android:name=".SleepService"
