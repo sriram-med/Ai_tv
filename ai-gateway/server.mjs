@@ -52,7 +52,7 @@ async function readJson(req) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 createServer(async (req, res) => {
-  if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, configured: Boolean(KEY && PAIRING_SECRET && SIGNING_SECRET && db) });
+  if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, configured: Boolean(KEY && PAIRING_SECRET && SIGNING_SECRET && db), watchmodeConfigured: Boolean(process.env.WATCHMODE_API_KEY) });
   if (req.method === 'POST' && req.url === '/v1/pair/code') {
     if (!PAIRING_SECRET || !SIGNING_SECRET || !equal(req.headers.authorization?.replace(/^Bearer /, '') || '', PAIRING_SECRET)) return json(res, 401, {error:'unauthorized'});
     if (limited(req)) return json(res, 429, {error:'rate_limited'});
@@ -107,7 +107,7 @@ createServer(async (req, res) => {
       api.searchParams.set('apiKey',process.env.WATCHMODE_API_KEY);
       api.searchParams.set('regions',region);
       const response=await fetch(api,{signal:controller.signal});
-      if(!response.ok)return json(res,502,{error:'source_provider_error'});
+      if(!response.ok)return json(res,response.status===400?422:502,{error:response.status===400?'region_not_enabled_or_invalid_request':'source_provider_error'});
       const raw=await response.json();
       const sources=(Array.isArray(raw)?raw:[]).filter(x=>x.region===region)
         .filter(x=>['sub','free','tve'].includes(x.type))
