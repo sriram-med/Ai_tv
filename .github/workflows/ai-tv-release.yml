@@ -34,6 +34,10 @@ jobs:
           npm test
       - name: Compile Android debug APK
         run: bash ./gradlew :app:assembleDebug --no-daemon --console=plain
+      - name: Check release signing configuration
+        run: |
+          test -f release.properties
+          test -s "$RUNNER_TEMP/ai-tv-release.jks"
       - name: Build release APK
         run: bash ./gradlew :app:assembleRelease --no-daemon --console=plain
       - name: Verify APK and tag
