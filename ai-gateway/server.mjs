@@ -61,11 +61,12 @@ createServer(async (req, res) => {
     return json(res, 200, {code, expiresIn:300});
   }
   if (req.method === 'POST' && req.url === '/v1/pair/exchange') {
-    if (!SIGNING_SECRET || limited(req)) return json(res, 429, {error:'pairing_unavailable'});
+    if (!SIGNING_SECRET || !db) return json(res,503,{error:'pairing_unavailable'});
+    if (limited(req)) return json(res,429,{error:'rate_limited'});
     let body; try { body=await readJson(req); } catch {return json(res,400,{error:'invalid_request'});}
     const code=String(body.code||'').toUpperCase();
     if (!/^[0-9A-F]{10}$/.test(code) || !db) return json(res,403,{error:'invalid_or_expired_code'});
-    const client=await db.connect(); let deviceId;
+    let client; try {client=await db.connect();} catch {return json(res,503,{error:'database_unavailable'});} let deviceId;
     try { await client.query('BEGIN');
       const used=await client.query('DELETE FROM ai_tv_pair_codes WHERE code_hash=$1 AND expires_at>now() RETURNING code_hash',[hashCode(code)]);
       const count=await client.query('SELECT COUNT(*)::int AS total FROM ai_tv_devices WHERE revoked_at IS NULL');
@@ -75,7 +76,8 @@ createServer(async (req, res) => {
     return json(res,200,{accessToken:issueToken(deviceId), expiresIn:3600, deviceId});
   }
   if (req.method === 'POST' && req.url === '/v1/pair/refresh') {
-    if (!SIGNING_SECRET || limited(req)) return json(res,429,{error:'rate_limited'});
+    if (!SIGNING_SECRET || !db) return json(res,503,{error:'pairing_unavailable'});
+    if (limited(req)) return json(res,429,{error:'rate_limited'});
     const token=req.headers.authorization?.replace(/^Bearer /, '') || '';
     if (!await validToken(token)) return json(res,401,{error:'unauthorized'});
     const data=JSON.parse(Buffer.from(token.split('.')[0],'base64url').toString());
