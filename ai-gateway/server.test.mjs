@@ -26,3 +26,40 @@ test('streaming resolver requires authenticated TMDB identity and server-side Wa
   assert.match(source,/Number\.isSafeInteger\(id\)/);
   assert.match(source,/validSourceUrl\(x\.android_tv_url\)/);
 });
+
+test('HTTP health accepts tracking parameters and source lookup rejects unauthenticated requests', async () => {
+  const {spawn}=await import('node:child_process');
+  const {once}=await import('node:events');
+  const {createServer}=await import('node:net');
+  const probe=createServer();
+  probe.listen(0,'127.0.0.1');
+  await once(probe,'listening');
+  const port=probe.address().port;
+  await new Promise((resolve,reject)=>probe.close(e=>e?reject(e):resolve()));
+  const child=spawn(process.execPath,['server.mjs'],{
+    cwd:new URL('.',import.meta.url),
+    env:{...process.env,PORT:String(port),DATABASE_URL:'',AI_TV_DEVICE_TOKEN:'',AI_TV_SIGNING_SECRET:''},
+    stdio:'ignore'
+  });
+  try {
+    let health;
+    for(let attempt=0;attempt<35;attempt++){
+      if(child.exitCode!==null)throw new Error('gateway exited');
+      try {health=await fetch('http://127.0.0.1:'+port+'/health?utm_source=chatgpt.com');break;}
+      catch {await new Promise(r=>setTimeout(r,100));}
+    }
+    assert.ok(health,'gateway did not start');
+    assert.equal(health.status,200);
+    const body=await health.json();
+    assert.equal(body.ok,true);
+    assert.equal(typeof body.watchmodeConfigured,'boolean');
+    const sources=await fetch('http://127.0.0.1:'+port+'/v1/sources?tmdbId=278&kind=movie&region=IN');
+    assert.equal(sources.status,401);
+    assert.equal((await sources.json()).error,'unauthorized');
+    const missing=await fetch('http://127.0.0.1:'+port+'/');
+    assert.equal(missing.status,404);
+  } finally {
+    child.kill();
+    if(child.exitCode===null)await Promise.race([once(child,'exit'),new Promise(r=>setTimeout(r,1000))]);
+  }
+});
