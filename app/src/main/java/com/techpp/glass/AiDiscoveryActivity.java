@@ -66,7 +66,14 @@ public final class AiDiscoveryActivity extends Activity {
         reaction=label("✨  సినిమా సందడి!  ✨",20);
         reaction.setGravity(Gravity.CENTER);
         reaction.setTextColor(0xFFFFD57E);
-        if (MotionPrefs.telugu(this)) screen.addView(reaction);
+        if (MotionPrefs.telugu(this)) {
+            LinearLayout reactionRow=new LinearLayout(this);
+            reactionRow.setOrientation(LinearLayout.HORIZONTAL);
+            reactionRow.setGravity(Gravity.CENTER_VERTICAL);
+            if (MotionPrefs.level(this) > 0) reactionRow.addView(new TeluguReactionView(this));
+            reactionRow.addView(reaction);
+            screen.addView(reactionRow);
+        }
         react("✨  సినిమా సందడి!  ✨");
         telugu.setPivotX(0f);
         telugu.setAlpha(.65f);
