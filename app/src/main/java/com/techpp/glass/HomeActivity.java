@@ -2191,6 +2191,11 @@ public class HomeActivity extends Activity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
+        if (k == KeyEvent.KEYCODE_SEARCH) {
+            if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0)
+                startActivity(new Intent(this, AiDiscoveryActivity.class));
+            return true;
+        }
         boolean select = k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER
                 || k == KeyEvent.KEYCODE_NUMPAD_ENTER || k == KeyEvent.KEYCODE_BUTTON_A;
         boolean nav = k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
