@@ -25,7 +25,7 @@ public final class AmbientGlow extends View {
     public AmbientGlow(Context context, AttributeSet attrs) {
         super(context, attrs);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        // Keep hardware acceleration enabled for TV GPUs.
     }
 
     @Override protected void onDraw(Canvas canvas) {
@@ -34,9 +34,11 @@ public final class AmbientGlow extends View {
         if (w <= 0 || h <= 0) return;
         float drift = (float) Math.sin(phase * Math.PI * 2);
         drawGlow(canvas, w * (0.18f + drift * 0.035f), h * 0.83f,
-                w * 0.58f, Color.argb(39, 44, 104, 255));
+                w * 0.58f, Color.argb(82, 0, 92, 255));
         drawGlow(canvas, w * (0.85f - drift * 0.025f), h * 0.22f,
-                w * 0.47f, Color.argb(24, 134, 64, 239));
+                w * 0.47f, Color.argb(65, 255, 43, 125));
+        drawGlow(canvas, w * 0.54f, h * (0.94f - drift * 0.018f),
+                w * 0.32f, Color.argb(37, 0, 234, 211));
     }
 
     private void drawGlow(Canvas canvas, float x, float y, float radius, int color) {
