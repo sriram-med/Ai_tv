@@ -46,6 +46,36 @@ public final class AiTvPairingClient {
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply();
     }
 
+    public void refresh(String gateway, Callback callback) {
+        worker.execute(() -> {
+            HttpURLConnection connection=null;
+            try {
+                String token=currentToken();
+                if (token.isEmpty()) throw new IllegalStateException("Session expired");
+                URL url=new URL(gateway.replaceAll("/+$","")+"/v1/pair/refresh");
+                if (!"https".equalsIgnoreCase(url.getProtocol())) throw new IllegalArgumentException("HTTPS required");
+                connection=(HttpURLConnection)url.openConnection();
+                connection.setRequestMethod("POST");connection.setDoOutput(true);
+                connection.setConnectTimeout(7000);connection.setReadTimeout(12000);
+                connection.setRequestProperty("Authorization","Bearer "+token);
+                try(OutputStream out=connection.getOutputStream()){out.write(new byte[0]);}
+                if(connection.getResponseCode()!=200) throw new IllegalStateException("Session rejected");
+                try(InputStream in=connection.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
+                    byte[] b=new byte[1024];int n;
+                    while((n=in.read(b))!=-1){if(out.size()+n>8192)throw new IllegalStateException("Response too large");out.write(b,0,n);}
+                    JSONObject result=new JSONObject(out.toString("UTF-8"));
+                    long ttl=result.getLong("expiresIn");
+                    if(ttl<60 || ttl>3600)throw new IllegalStateException("Invalid TTL");
+                    app.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit()
+                        .putString(TOKEN,result.getString("accessToken"))
+                        .putLong(EXPIRES,System.currentTimeMillis()+ttl*1000L).apply();
+                    callback.onPaired();
+                }
+            } catch(Exception e){clearSession();callback.onError("Session expired. Pair this TV again.");}
+            finally {if(connection!=null)connection.disconnect();}
+        });
+    }
+
     public void exchange(String gateway, String code, Callback callback) {
         worker.execute(() -> {
             HttpURLConnection connection = null;
