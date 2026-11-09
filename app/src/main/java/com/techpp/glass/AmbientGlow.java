@@ -8,6 +8,7 @@ import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.Shader;
 import android.provider.Settings;
+import android.os.PowerManager;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
@@ -47,6 +48,8 @@ public final class AmbientGlow extends View {
 
     private boolean motionAllowed() {
         if (!ValueAnimator.areAnimatorsEnabled()) return false;
+        PowerManager power = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        if (power != null && power.isPowerSaveMode()) return false;
         if (getContext().getSharedPreferences("home", Context.MODE_PRIVATE)
                 .getBoolean("lite_effects", false)) return false;
         try {
@@ -55,6 +58,13 @@ public final class AmbientGlow extends View {
         } catch (Exception ignored) {
             return true;
         }
+    }
+
+    /** Refresh motion policy after settings or power mode changes. */
+    public void refreshMotionPolicy() {
+        stop();
+        invalidate();
+        start();
     }
 
     private void start() {
