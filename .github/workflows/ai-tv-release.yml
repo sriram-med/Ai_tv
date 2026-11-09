@@ -26,6 +26,14 @@ jobs:
           printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ai-tv-release.jks"
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
             "$RUNNER_TEMP/ai-tv-release.jks" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > release.properties
+      - name: Test gateway
+        run: |
+          node --check ai-gateway/server.mjs
+          cd ai-gateway
+          npm ci --omit=dev
+          npm test
+      - name: Compile Android debug APK
+        run: bash ./gradlew :app:assembleDebug --no-daemon --console=plain
       - name: Build release APK
         run: bash ./gradlew :app:assembleRelease --no-daemon --console=plain
       - name: Verify APK and tag
