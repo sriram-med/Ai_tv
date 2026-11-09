@@ -38,20 +38,18 @@ import java.security.MessageDigest;
  */
 final class SelfUpdate {
     private static final String TAG = "GlassSelfUpdate";
-    private static final String LATEST = "https://api.github.com/repos/rajupp/talkies/releases/latest";
+    private static final String LATEST = "https://api.github.com/repos/sriram-med/Ai_tv/releases/latest";
     /** The only place the APK may come from: this repository's releases. */
-    private static final String RELEASES = "https://github.com/rajupp/talkies/releases/download/";
+    private static final String RELEASES = "https://github.com/sriram-med/Ai_tv/releases/download/";
     /** The release key's certificate (SHA-256, as apksigner verify --print-certs shows it). */
-    private static final String RELEASE_CERT = "8de7e80b42b39ac43893b7ab34294312136632f07dbf7a633ed1f67df57c4943";
-    static final String ASSET = "talkies.apk";
-    private static final long MAX_SIZE = 20L << 20;   // the APK is about 200 KB
-    private static final long DAY = 24 * 3600_000L;
+    static final String ASSET = "ai-tv.apk";
+    private static final long MAX_SIZE = 100L << 20;   // the APK is about 200 KB
+    private static final long DAY = 12 * 3600_000L;
     static final String ACTION = "com.techpp.glass.UPDATE_STATUS";
 
     /** What the row shows; the latest version found is in "latest". */
     interface Listener { void changed(String status); }
 
-    private static Boolean releaseKey;
     /** The row or bell that started the install: Android's answer comes later, to Receiver. */
     private static volatile Listener waiting;
 
@@ -62,16 +60,7 @@ final class SelfUpdate {
     private static SharedPreferences prefs(Context c) { return c.getSharedPreferences("updates", Context.MODE_PRIVATE); }
 
     /** This app is the APK from the releases (the project's key), so it can install the next one. */
-    static boolean takesReleases(Context c) {
-        if (releaseKey == null) {
-            try {
-                releaseKey = RELEASE_CERT.equals(cert(c.getPackageManager().getPackageInfo(c.getPackageName(), PackageManager.GET_SIGNATURES)));
-            } catch (PackageManager.NameNotFoundException e) {
-                releaseKey = false;
-            }
-        }
-        return releaseKey;
-    }
+    static boolean takesReleases(Context c) { return true; }
 
     static String installed(Context c) {
         try {
@@ -91,7 +80,7 @@ final class SelfUpdate {
     static String summary(Context c) {
         String mine = installed(c), v = available(c);
         if (v == null) return mine + "  ·  " + (prefs(c).contains("checked") ? "Up to date" : "Check now");
-        if (!takesReleases(c)) return v + " is out  ·  build it again";
+
         return v.equals(prefs(c).getString("no_installer", null)) ? v + " is out  ·  needs a computer" : v + " is out  ·  OK installs";
     }
 
@@ -119,7 +108,7 @@ final class SelfUpdate {
                 JSONObject release = latest(c);
                 String v = available(c);
                 if (v == null) { l.changed(summary(c)); return; }
-                if (!takesReleases(c)) { l.changed(summary(c)); return; }
+
                 l.changed("Downloading " + v + "…");
                 File apk = download(c, release, v);
                 String wrong = misfit(c, apk);
@@ -163,7 +152,7 @@ final class SelfUpdate {
         File[] old = dir.listFiles();
         for (int i = 0; old != null && i < old.length; i++) old[i].delete();
         dir.mkdirs();
-        File to = new File(dir, "talkies-" + version + ".apk"), part = new File(to.getPath() + ".part");
+        File to = new File(dir, "ai-tv-" + version + ".apk"), part = new File(to.getPath() + ".part");
         MessageDigest sha = MessageDigest.getInstance("SHA-256");
         long total = 0;
         HttpURLConnection h = open(url);
@@ -179,7 +168,7 @@ final class SelfUpdate {
                     out.write(buffer, 0, n);
                 }
             }
-            if (total != size || digest.startsWith("sha256:") && !digest.substring(7).equalsIgnoreCase(hex(sha.digest()))) {
+            if (total != size || !digest.startsWith("sha256:") || !digest.substring(7).equalsIgnoreCase(hex(sha.digest()))) {
                 throw new IOException("the download doesn't match GitHub's size or SHA-256");
             }
             if (!part.renameTo(to)) throw new IOException("couldn't save the update");
@@ -203,7 +192,8 @@ final class SelfUpdate {
         String name = theirs.versionName == null ? "" : theirs.versionName;
         if (theirs.versionCode <= ours.versionCode || compare(name, ours.versionName) <= 0) return "isn't newer than this one";
         String cert = cert(theirs);
-        if (cert != null && !RELEASE_CERT.equals(cert)) return "isn't signed with Talkies' key";
+        String installedCert = cert(pm.getPackageInfo(c.getPackageName(), PackageManager.GET_SIGNATURES));
+        if (cert == null || installedCert == null || !installedCert.equals(cert)) return "isn't signed with this installation's key";
         return null;   // a signature that can't be read here is left to Android's installer, which refuses another key
     }
 
@@ -319,7 +309,7 @@ final class SelfUpdate {
         HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
         h.setConnectTimeout(10000);
         h.setReadTimeout(30000);
-        h.setRequestProperty("User-Agent", "Talkies");
+        h.setRequestProperty("User-Agent", "AI-TV-2-Updater");
         return h;
     }
 
