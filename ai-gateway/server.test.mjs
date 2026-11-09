@@ -18,3 +18,11 @@ test('recommendation catalog is bounded', () => {
   assert.match(source,/body\.catalog\.slice\(0, 40\)/);
   assert.match(source,/ids\.has\(String\(x\.id\)\)/);
 });
+
+test('streaming resolver requires authenticated TMDB identity and server-side Watchmode key',()=>{
+  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
+  assert.match(source,/WATCHMODE_API_KEY/);
+  assert.match(source,/\/v1\/sources\?/);
+  assert.match(source,/Number\.isSafeInteger\(id\)/);
+  assert.match(source,/validSourceUrl\(x\.android_tv_url\)/);
+});
