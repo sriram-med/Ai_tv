@@ -2193,7 +2193,10 @@ public class HomeActivity extends Activity {
         int k = e.getKeyCode();
         if (k == KeyEvent.KEYCODE_SEARCH) {
             if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0)
-                startActivity(new Intent(this, AiDiscoveryActivity.class));
+                {
+                    startActivity(new Intent(this, AiDiscoveryActivity.class));
+                    overridePendingTransition(R.anim.mac_window_open, R.anim.mac_home_dim);
+                }
             return true;
         }
         boolean select = k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER
