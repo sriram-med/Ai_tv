@@ -32,7 +32,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig releaseProps.storeFile ? signingConfigs.release : signingConfigs.debug
+            if (releaseProps.storeFile) signingConfig signingConfigs.release
         }
     }
     compileOptions {
