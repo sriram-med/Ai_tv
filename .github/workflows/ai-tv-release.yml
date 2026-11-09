@@ -57,7 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(sed -nE "/^[[:space:]]*versionName[[:space:]]+/s/.*'([^']+)'.*/\\1/p" app/build.gradle | head -1)
+          VERSION=$(awk '$1 == "versionName" {gsub(/\047/, "", $2); print $2; exit}' app/build.gradle)
           test "$VERSION" = "1.2.12"
           TAG="ai-tv-v$VERSION"
           test -n "$TAG"
