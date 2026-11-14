@@ -27,3 +27,18 @@ Validation:
 python3 -m pip install numpy pandas scikit-learn
 python3 integration/tvos/tests/check_recommenders.py
 ```
+
+## Catalog repair in 1.8.5
+
+AI discovery now loads its own movie and series catalogs rather than inheriting
+Home shelf enablement, selected providers or TMDB-key settings. It uses Cinemeta's
+paginated catalog path and a second metadata host, bounded HTTP requests and
+independent per-kind disk caches. Mood buttons filter actual genre metadata, which
+is also included in ranking. Empty-source failures show Retry rather than claiming
+that recommendations are ready. Metadata availability is separate from streaming
+subscription availability.
+
+Catalog regressions exercise host failure, missing Home-provider configuration,
+genre filtering, fresh/stale offline cache and empty-source errors. Emulator
+checks require positive counts plus actual poster title labels for default and
+thriller results. The keyboard is toggled separately to keep poster rails visible.

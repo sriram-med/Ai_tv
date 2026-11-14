@@ -33,7 +33,35 @@ texts = ' '.join(n.get('text', '') for n in root.iter('node'))
 Path('tv-preview-shots/ai-chooser.xml').write_text(ET.tostring(root, encoding='unicode'))
 if 'AI DISCOVERY' not in texts or 'RECOMMEND' not in texts or 'SEARCH' not in texts:
     raise SystemExit('FAIL: AI button did not open AI discovery chooser: ' + texts)
-# The editable field is focused on entry; test actual hardware/IME text delivery.
+def click_text(root, text):
+    node=next(n for n in root.iter('node') if n.get('text')==text)
+    x1,y1,x2,y2=map(int,re.findall(r'\d+',node.get('bounds','')))
+    adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2))
+
+def wait_recommendations(category=''):
+    for attempt in range(20):
+        time.sleep(1)
+        current=hierarchy()
+        text=' '.join(n.get('text','') for n in current.iter('node'))
+        match=re.search(r'(\d+) recommendations',text)
+        posters=[n for n in current.iter('node') if re.search(r' · (19|20)\d{2}',n.get('text',''))]
+        if match and int(match.group(1))>0 and posters and (not category or category+' catalog' in text):
+            return current
+        if 'Catalog unavailable.' in text:raise SystemExit('FAIL: no recommendation data: '+text)
+    raise SystemExit('FAIL: no actual poster recommendations rendered: '+text)
+
+# Test empty-query discovery and a mood without requiring Home shelf configuration.
+root=wait_recommendations()
+Path('tv-preview-shots/default-recommendations.xml').write_text(ET.tostring(root,encoding='unicode'))
+click_text(root,'THRILLERS')
+root=wait_recommendations('Thriller')
+Path('tv-preview-shots/genre-recommendations.xml').write_text(ET.tostring(root,encoding='unicode'))
+click_text(root,'KEYBOARD')
+root=hierarchy()
+# Focus the editable field explicitly, then exercise hardware/IME text delivery.
+node=next(n for n in root.iter('node') if n.get('class')=='android.widget.EditText')
+x1,y1,x2,y2=map(int,re.findall(r'\d+',node.get('bounds','')))
+adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2))
 adb('shell', 'input', 'text', 'alien')
 time.sleep(1)
 root = hierarchy()
@@ -62,10 +90,10 @@ for attempt in range(25):
     labels=' '.join(n.get('text','') for n in root.iter('node'))
     if any(s in labels for s in ('CONNECT GPT','GPT RANK','Secure AI pairing')):
         raise SystemExit('FAIL: removed GPT setup UI reappeared')
-    if 'Recommenders TF-IDF' in labels: break
+    if re.search(r'[1-9]\d* recommendations',labels) and any(re.search(r' · (19|20)\d{2}',n.get('text','')) for n in root.iter('node')): break
 else:
     raise SystemExit('FAIL: native recommendations did not finish')
 Path('tv-preview-shots/native-recommendations.xml').write_text(ET.tostring(root,encoding='unicode'))
 adb('shell', 'input', 'keyevent', '22')
 adb('shell', 'input', 'keyevent', '21')
-print('PASS: signed upgrade, AI chooser, typed search, persistent search input, remote keyboard and keyless native recommendations')
+print('PASS: signed upgrade, AI chooser, typed search, persistent search input, remote keyboard, nonempty default/genre catalogs and keyless native recommendations')
