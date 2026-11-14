@@ -65,10 +65,10 @@ jobs:
           python3 - <<'PY'
           import os,base64,re
           secret=os.environ["KEYSTORE_B64"].strip().strip('"').strip("'")
-          secret=secret.replace(r"\\n","").replace(r"\\r","")
+          secret=secret.replace(r"\n","").replace(r"\r","")
           if secret.lower().startswith("data:") and "base64," in secret.lower():
               secret=secret.split(",",1)[1]
-          secret=re.sub(r"\\s+","",secret)
+          secret=re.sub(r"\s+","",secret)
           try:
               decoded=base64.b64decode(secret+"="*((-len(secret))%4),altchars=b"-_",validate=True)
           except Exception:
