@@ -19,6 +19,10 @@ source = root / "src/com/techgenius/tvoslauncher"
 dest = root / "src/com/techpp/glass"
 dest.parent.mkdir(parents=True, exist_ok=True)
 source.rename(dest)
+# Native adaptation of the cloned MIT-licensed Recommenders TF-IDF model.
+import shutil
+shutil.copy2("app/src/main/java/com/techpp/glass/ContentRecommender.java", dest / "ContentRecommender.java")
+shutil.copy2("vendor/recommenders/LICENSE", root / "assets/RECOMMENDERS-LICENSE.txt")
 
 manifest = root / "AndroidManifest.xml"
 content = manifest.read_text()
@@ -130,7 +134,7 @@ helper = r'''
         field.setStroke(a.dp(1), 0xFF5D8EAA); aiSearchInput.setBackground(field);
         bar.addView(aiSearchInput, new LinearLayout.LayoutParams(0, a.dp(44), 1f));
         bar.addView(chip("SEARCH", () -> submitAiSearch(false)));
-        bar.addView(chip("GPT RANK", () -> submitAiSearch(true)));
+        bar.addView(chip("RECOMMEND", () -> submitAiSearch(true)));
         aiSearchChrome.addView(bar);
         aiSearchInput.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s,int start,int count,int after) {}
@@ -183,44 +187,33 @@ helper = r'''
         android.view.inputmethod.InputMethodManager ime =
             (android.view.inputmethod.InputMethodManager) a.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
         if (ime != null) ime.hideSoftInputFromWindow(aiSearchInput.getWindowToken(), 0);
-        if (rank) {
-            if (new AiTvPairingClient(a).hasSession()) aiPick(prompt, "");
-            else pairForAi(prompt, "");
-        } else setQuery(prompt);
+        if (rank) aiPick(prompt, "");
+        else setQuery(prompt);
     }
 
-    private static final String AI_GATEWAY = "https://ai-tv-2-gpt-gateway.onrender.com";
-
-    /** AI recommendations use the SAME original tvOS poster components, logos and animations. */
+    /** Recommendations open directly, without cloud-key or pairing dialogs. */
     void openAiChooser() {
         setupAiSearch();
         a.handler.removeCallbacks(fetch);
-        gen++;
         Search.cancel();
-        String[] topics = {"MOVIES  /  Tonight", "SERIES  /  Binge-worthy",
-            "THRILLERS", "SCIENCE FICTION", "COMEDY", "FAMILY", "DRAMA", "ACTION",
-            "CONNECT GPT"};
-        String[] searches = {"popular movies", "popular series", "thriller", "science fiction",
-            "comedy", "family", "drama", "action", "movies"};
-        list.removeAllViews();
-        List<View> chips = new ArrayList<>();
-        for(int i=0;i<topics.length;i++){
-            final int which=i;
-            chips.add(chip(topics[i], () -> {
-                String q = query.length() >= 2 ? q() : searches[which];
-                String preference = which == 0 ? "movie" : which == 1 ? "tv" : "";
-                if (which == topics.length - 1) pairForAi(q, preference);
-                else if (new AiTvPairingClient(a).hasSession()) aiPick(q, preference);
-                else showCuratedPicks(q, preference);
-            }));
-        }
-        addRow("EXPLORE  /  MOVIES, SERIES & MOODS", chips, a.dp(52));
-        addNote("Select movies or series for native poster recommendations. Connect GPT for personalized ranking.");
+        showCuratedPicks(q(), "");
         aiSearchInput.requestFocus();
     }
 
+    private void addAiTopics() {
+        String[] topics={"MOVIES", "SERIES", "THRILLERS", "SCI-FI", "COMEDY", "FAMILY", "DRAMA", "ACTION"};
+        String[] prompts={"movies", "series", "thriller", "science fiction", "comedy", "family", "drama", "action"};
+        List<View> chips=new ArrayList<>();
+        for(int i=0;i<topics.length;i++) {
+            final int which=i;
+            chips.add(chip(topics[i],()->showCuratedPicks(prompts[which],
+                which==0?"movie":which==1?"tv":"")));
+        }
+        addRow("EXPLORE  /  MOVIES, SERIES & MOODS",chips,a.dp(44));
+    }
+
     /**
-     * Always usable without GPT credentials. Reuses ORIGINAL upstream JustWatch /
+     * Content-based ranking adapted from the MIT-licensed Recommenders model. Reuses ORIGINAL upstream JustWatch /
      * Stremio recommendation sources and poster card builder.
      */
     void showCuratedPicks(String q, String kind) {
@@ -259,127 +252,68 @@ helper = r'''
                     else movies.add(title);
                 }
             }
+            List<Search.Title> rankedMovies=rankTitles(q,movies);
+            List<Search.Title> rankedSeries=rankTitles(q,series);
             a.handler.post(() -> {
                 if (closed || gen != requestGeneration) return;
                 list.removeAllViews();
+                addAiTopics();
                 List<View> movieTiles = new ArrayList<>(), seriesTiles = new ArrayList<>();
                 if (!"tv".equals(kind))
-                    for (Search.Title movie : movies) { movieTiles.add(titleCard(movie)); if(movieTiles.size()>=18)break; }
+                    for (Search.Title movie : rankedMovies) { movieTiles.add(titleCard(movie)); if(movieTiles.size()>=18)break; }
                 if (!"movie".equals(kind))
-                    for (Search.Title show : series) { seriesTiles.add(titleCard(show)); if(seriesTiles.size()>=18)break; }
-                addNote("Curated from streaming providers; connect GPT separately for AI-ranked picks.");
+                    for (Search.Title show : rankedSeries) { seriesTiles.add(titleCard(show)); if(seriesTiles.size()>=18)break; }
+                addNote("Recommenders TF-IDF • Ranked on this TV from verified provider metadata");
                 if (!movieTiles.isEmpty()) addRow("RECOMMENDED MOVIES", movieTiles, a.dp(176));
                 if (!seriesTiles.isEmpty()) addRow("RECOMMENDED SERIES", seriesTiles, a.dp(176));
                 if (movieTiles.isEmpty() && seriesTiles.isEmpty()) {
                     addNote("The recommendations catalog is empty. Search movie or series titles to browse.");
-                    setQuery(q);
+                    addNote("Use the search field above to find a title or genre.");
                 }
             });
         });
     }
 
-    private void pairForAi(String q, String kind) {
-        android.widget.EditText input = new android.widget.EditText(a);
-        input.setSingleLine(true);
-        input.setHint("One-time device pairing code");
-        new AlertDialog.Builder(a).setTitle("Secure AI pairing")
-            .setMessage("AI recommendations require a one-time code issued by the gateway administrator. Do not enter an OpenAI API key. Local poster search works without pairing.")
-            .setView(input)
-            .setPositiveButton("PAIR", (dialog, which) -> {
-                String code = input.getText().toString().trim();
-                new AiTvPairingClient(a).exchange(AI_GATEWAY, code, new AiTvPairingClient.Callback() {
-                    public void onPaired() {a.runOnUiThread(() -> aiPick(q, kind));}
-                    public void onError(String reason) {
-                        a.runOnUiThread(() -> {
-                            new AlertDialog.Builder(a).setTitle("AI pairing unavailable")
-                                .setMessage(reason + "\nYou can still browse movies and series with the normal search.")
-                                .setPositiveButton("Search", (d,w) -> setQuery(q))
-                                .setNegativeButton("Close",null).show();
-                        });
-                    }
-                });
-            }).setNeutralButton("LOCAL SEARCH", (dialog,which) -> setQuery(q))
-            .setNegativeButton("Cancel",null).show();
+    /** Rank only verified catalog objects; IDs map back to the original poster cards. */
+    private List<Search.Title> rankTitles(String prompt, List<Search.Title> titles) {
+        List<ContentRecommender.Item> items = new ArrayList<>();
+        for (int i=0;i<titles.size() && i<80;i++) {
+            Search.Title title=titles.get(i);
+            items.add(new ContentRecommender.Item(String.valueOf(i),
+                title.title+" "+(title.overview == null ? "" : title.overview)));
+        }
+        List<Search.Title> ranked=new ArrayList<>();
+        for (ContentRecommender.Scored scored:ContentRecommender.rank(prompt,items))
+            ranked.add(titles.get(Integer.parseInt(scored.id)));
+        return ranked;
     }
 
     void aiPick(String prompt, String type) {
         final int requestGeneration = ++gen;
-        if (prompt == null || prompt.trim().length() < 2) prompt = "movies";
-        final String queryText = prompt.trim();
-        addNote("Finding verified streaming titles for " + queryText + "...");
+        final String queryText = prompt == null ? "" : prompt.trim();
+        list.removeAllViews();
+        addNote("Finding catalog matches and ranking on this TV...");
         net.execute(() -> {
-            List<Search.Title> all;
-            try {all = Search.titles(a, queryText, apps);}
-            catch (Exception e) {all = new ArrayList<>();}
-            List<Search.Title> retrieved = all;
+            List<Search.Title> fetched;
+            try { fetched=Search.titles(a,queryText,apps); }
+            catch(Exception unavailable) { fetched=new ArrayList<>(); }
+            List<Search.Title> filtered=new ArrayList<>();
+            for(Search.Title title:fetched)
+                if(type.isEmpty() || type.equals(title.type)) filtered.add(title);
+            List<Search.Title> ranked=rankTitles(queryText,filtered);
             a.handler.post(() -> {
-                if (closed || gen != requestGeneration) return;
-                if (retrieved.isEmpty()) {
-                    addNote("No catalog available for " + queryText + ". Search locally or try another genre.");
-                    setQuery(queryText);
-                    return;
+                if(closed || gen != requestGeneration)return;
+                if(ranked.isEmpty()) { showCuratedPicks(queryText,type); return; }
+                list.removeAllViews();
+                addAiTopics();
+                addNote("Ranked on this TV with Recommenders TF-IDF • No account or API key needed");
+                List<View> movies=new ArrayList<>(),shows=new ArrayList<>();
+                for(Search.Title title:ranked) {
+                    if("tv".equals(title.type))shows.add(titleCard(title));
+                    else movies.add(titleCard(title));
                 }
-            });
-            if (retrieved.isEmpty()) return;
-            LinkedHashMap<String, Search.Title> ids = new LinkedHashMap<>();
-            JSONArray catalog = new JSONArray();
-            int index = 0;
-            for (Search.Title title : retrieved) {
-                if (!type.isEmpty() && !type.equals(title.type)) continue;
-                String key = title.imdb.isEmpty() ? "local:" + index : title.imdb;
-                index++;
-                if (ids.containsKey(key)) continue;
-                ids.put(key, title);
-                try {
-                    catalog.put(new JSONObject().put("id",key).put("title",title.title)
-                        .put("overview",title.overview).put("providers",new JSONArray()));
-                } catch (Exception ignored) {}
-                if (catalog.length() >= 40) break;
-            }
-            if (catalog.length() == 0) {
-                a.handler.post(() -> {
-                    if (!closed && gen == requestGeneration) {
-                        list.removeAllViews();
-                        addNote("No matching " + ("tv".equals(type) ? "series" : "movies") + " found. Try a different term.");
-                    }
-                }); return;
-            }
-            new AiRecommendationClient().recommend(AI_GATEWAY,
-                new AiTvPairingClient(a).currentToken(),
-                "Recommend the best " + ("movie".equals(type) ? "movies" : "tv".equals(type) ? "series" : "movies and shows") +
-                    " matching: " + queryText, catalog, new AiRecommendationClient.Callback() {
-                @Override public void onSuccess(JSONArray response) {
-                    a.handler.post(() -> {
-                        if (closed || gen != requestGeneration) return;
-                        List<View> movies = new ArrayList<>(), shows = new ArrayList<>();
-                        for (int i = 0; i < response.length(); i++) {
-                            JSONObject rec = response.optJSONObject(i);
-                            Search.Title t = rec == null ? null : ids.get(rec.optString("id"));
-                            if (t == null) continue;
-                            if ("tv".equals(t.type)) shows.add(titleCard(t));
-                            else movies.add(titleCard(t));
-                        }
-                        list.removeAllViews();
-                        if (!movies.isEmpty()) addRow("\u2726 AI MOVIES", movies, a.dp(176));
-                        if (!shows.isEmpty()) addRow("\u2726 AI SERIES", shows, a.dp(176));
-                        if (movies.isEmpty() && shows.isEmpty())
-                            addNote("AI returned no matching titles. Local search remains available.");
-                    });
-                }
-                @Override public void onError(String reason) {
-                    a.handler.post(() -> {
-                        if (closed || gen != requestGeneration) return;
-                        list.removeAllViews();
-                        List<View> movies = new ArrayList<>(), shows = new ArrayList<>();
-                        for (Search.Title t : ids.values()) {
-                            if ("tv".equals(t.type)) shows.add(titleCard(t));
-                            else movies.add(titleCard(t));
-                        }
-                        addNote("AI gateway unavailable — showing verified local catalog results.");
-                        if (!movies.isEmpty()) addRow("MOVIES", movies, a.dp(176));
-                        if (!shows.isEmpty()) addRow("SERIES", shows, a.dp(176));
-                    });
-                }
+                if(!movies.isEmpty())addRow("RECOMMENDED MOVIES",movies,a.dp(176));
+                if(!shows.isEmpty())addRow("RECOMMENDED SERIES",shows,a.dp(176));
             });
         });
     }

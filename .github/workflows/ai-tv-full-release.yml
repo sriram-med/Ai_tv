@@ -1,4 +1,4 @@
-name: AI TV 1.8.2 hotfix full APK
+name: AI TV 1.8.3 hotfix full APK
 on:
   workflow_dispatch:
   push:
@@ -7,7 +7,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: ai-tv-v1.8.2-stable
+  group: ai-tv-v1.8.3-stable
   cancel-in-progress: true
 jobs:
   full-release:
@@ -45,12 +45,19 @@ jobs:
           grep -q 'sriram-med/Ai_tv/releases/latest' upstream/src/com/techpp/glass/AppUpdater.java
           grep -q 'if (false)' upstream/src/com/techpp/glass/SettingsActivity.java
           test -s upstream/NOTICE
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify cloned Recommenders model parity
+        run: |
+          python3 -m pip install numpy pandas scikit-learn
+          python3 integration/tvos/tests/check_recommenders.py
       - name: Test generated AI navigation and release comparisons
         run: python3 integration/tvos/tests/check_navigation.py
       - name: Build original full Android TV application
         env:
-          VERSION_NAME: 1.8.2
-          VERSION_CODE: 48
+          VERSION_NAME: 1.8.3
+          VERSION_CODE: 49
         run: |
           cd upstream
           bash build.sh
@@ -88,10 +95,11 @@ jobs:
             --key-pass env:KEY_PASSWORD \
             --out ai-tv.apk upstream/build/aligned.apk
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs ai-tv.apk
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging ai-tv.apk | grep "^package: name='com.techpp.glass' versionCode='48' versionName='1.8.2'"
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging ai-tv.apk | grep "^package: name='com.techpp.glass' versionCode='49' versionName='1.8.3'"
           sha256sum ai-tv.apk > ai-tv.apk.sha256
           cp upstream/LICENSE UPSTREAM-LICENSE.txt
           cp upstream/NOTICE UPSTREAM-NOTICE.txt
+          cp vendor/recommenders/LICENSE RECOMMENDERS-LICENSE.txt
       - name: Verify upgrade signing against installed preview
         run: |
           set -euo pipefail
@@ -104,27 +112,28 @@ jobs:
       - name: Upload stable signed APK for installation
         uses: actions/upload-artifact@v4
         with:
-          name: ai-tv-v1.8.2-signed
+          name: ai-tv-v1.8.3-signed
           path: |
             ai-tv.apk
             ai-tv.apk.sha256
             UPSTREAM-LICENSE.txt
             UPSTREAM-NOTICE.txt
+            RECOMMENDERS-LICENSE.txt
       - name: Publish normal production GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="ai-tv-v1.8.2"
+          TAG="ai-tv-v1.8.3"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Existing stable release remains immutable"
             exit 0
           fi
-          gh release create "$TAG" ai-tv.apk ai-tv.apk.sha256 UPSTREAM-LICENSE.txt UPSTREAM-NOTICE.txt \
+          gh release create "$TAG" ai-tv.apk ai-tv.apk.sha256 UPSTREAM-LICENSE.txt UPSTREAM-NOTICE.txt RECOMMENDERS-LICENSE.txt \
             --target "$GITHUB_SHA" \
-            --title "AI TV 1.8.2 — AI Search Studio" \
+            --title "AI TV 1.8.3 — Native Recommenders" \
             --latest \
-            --notes "AI Search Studio adds a persistent editable search field, remote-friendly QWERTY keyboard, space/delete/clear controls, system keyboard support for numbers and punctuation, and separate Search and GPT Rank actions. Restyled discovery header and bordered gradient search surface keep controls visible above movie and series poster rails. Prevents stale recommendation responses from replacing newer searches. Includes AI navigation and OTA permission fixes from 1.8.1. Package com.techpp.glass, version 1.8.2, code 48. Signed with the retained production key. GPT ranking still requires a configured paired gateway; local title search works without GPT pairing. Based on pinned Apache-2.0 tvOS-Launcher with notices preserved."
+            --notes "Integrates the content-based TF-IDF / cosine ranking algorithm from recommenders-team/recommenders, cloned at cc47866b0599721f8544d1cc850a5a1db091acb3. Native Android adaptation is tested for numeric parity against the original Python model. Recommendations rank title/overview metadata directly on the TV; no GPT key, pairing setup, paid inference, or recommendation-server account is needed. Removed Connect GPT and its pairing popup. Recommend replaces GPT Rank. AI opens recommendation rails directly, with persistent search and QWERTY keyboard. Catalog retrieval still needs internet. This is content-based ranking, not a collaborative model trained on viewing history. Version 1.8.3 code 49. Signed with the retained production key. Apache-2.0 upstream launcher and MIT Recommenders notices included."
       - name: Remove keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/ai-tv-stable.jks"

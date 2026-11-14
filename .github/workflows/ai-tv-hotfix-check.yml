@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [release/ai-tv-1.8.0]
   push:
-    branches: [fix/ai-button-ota, feature/ai-search-studio]
+    branches: [fix/ai-button-ota, feature/ai-search-studio, feature/native-recommenders]
 permissions:
   contents: read
 jobs:
@@ -23,6 +23,13 @@ jobs:
           python3 integration/tvos/patch_upstream.py
           cp app/src/main/java/com/techpp/glass/AiTvPairingClient.java upstream/src/com/techpp/glass/
           cp app/src/main/java/com/techpp/glass/AiRecommendationClient.java upstream/src/com/techpp/glass/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install parity-test dependencies
+        run: python3 -m pip install numpy pandas scikit-learn
+      - name: Verify native ranking against cloned Recommenders
+        run: python3 integration/tvos/tests/check_recommenders.py
       - name: Run generated Java regression checks
         run: python3 integration/tvos/tests/check_navigation.py
       - name: Compile full TV application
