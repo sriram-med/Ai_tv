@@ -32,6 +32,10 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.util.Locale;
 import java.util.Set;
 
@@ -41,7 +45,7 @@ import java.util.Set;
  */
 public final class CinemaHomeActivity extends Activity {
     private static final int BG=0xFF071015, PANEL=0xE41B2C32, FOCUS=0xFFB8F4DC, GOLD=0xFFE9BD7D;
-    private LinearLayout content,nav,railMovies,railShows,railApps,railContinue;
+    private LinearLayout content,nav,railMovies,railShows,railApps,railContinue,railAi;
     private FrameLayout root;
     private TextView clock,weather,featureTitle,featureMeta,headline;
     private ImageView featureArt;
@@ -147,6 +151,8 @@ public final class CinemaHomeActivity extends Activity {
         clock=text("",14,true);clock.setTextColor(0xFFD4DFD9);header.addView(clock);
         content.addView(header);
         hero();
+        railHeader("AI PICKS FOR YOU","GPT-ranked suggestions from your verified catalog",()->open(AuroraDiscoveryActivity.class));
+        railAi=horizontalRail();
         railHeader("RECOMMENDED MOVIES","Films selected from the available catalog",()->open(AuroraDiscoveryActivity.class));
         railMovies=horizontalRail();
         railHeader("SERIES TO EXPLORE","Shows and new seasons",()->open(AuroraDiscoveryActivity.class));
@@ -156,7 +162,8 @@ public final class CinemaHomeActivity extends Activity {
         railHeader("CONTINUE WATCHING","Previously played media, when permitted",null);
         railContinue=horizontalRail();
         renderApps();renderContinue();renderCatalog();
-        new Trending(this).refreshIfStale(picks->{if(!isFinishing())renderCatalog();});
+        new Trending(this).refreshIfStale(picks->{if(!isFinishing()){renderCatalog();loadAiPicks();}});
+        loadAiPicks();
         handler.post(clockTask);
         new Weather(this).refreshIfStale(line->{if(!isFinishing()&&weather!=null)
             weather.setText(line==null?"Weather unavailable":line);});
@@ -244,6 +251,56 @@ public final class CinemaHomeActivity extends Activity {
                 featureArt.setImageBitmap(BitmapFactory.decodeFile(spotlight.image.getAbsolutePath(),options));
             }
         }
+    }
+    private void loadAiPicks(){
+        if(railAi==null)return;
+        railAi.removeAllViews();
+        AiTvPairingClient pairing=new AiTvPairingClient(this);
+        if(!pairing.hasSession()){
+            emptyRail(railAi,"Connect your TV in Discover to enable GPT-ranked recommendations.");
+            return;
+        }
+        List<Trending.Pick> catalog=new Trending(this).cached();
+        if(catalog.isEmpty()){
+            emptyRail(railAi,"No verified titles yet. Open Discover to refresh the catalog.");
+            return;
+        }
+        JSONArray input=new JSONArray();
+        Map<String,Trending.Pick> ids=new LinkedHashMap<>();
+        for(Trending.Pick pick:catalog){
+            if(pick==null||pick.title==null||pick.title.isEmpty())continue;
+            String id=pick.key();
+            try{input.put(new JSONObject().put("id",id).put("title",pick.title)
+                .put("overview",pick.meta==null?"":pick.meta)
+                .put("providers",new JSONArray().put(pick.service==null?"":pick.service)));}
+            catch(Exception ignored){}
+            ids.put(id,pick);
+            if(input.length()>=40)break;
+        }
+        if(input.length()==0)return;
+        emptyRail(railAi,"Ranking your catalog…");
+        new AiRecommendationClient().recommend(
+            "https://ai-tv-2-gpt-gateway.onrender.com",pairing.currentToken(),
+            "Recommend a balanced mix of excellent movies and series for tonight",input,
+            new AiRecommendationClient.Callback(){
+                public void onSuccess(JSONArray ranked){runOnUiThread(()->{
+                    if(isFinishing()||railAi==null)return;
+                    railAi.removeAllViews();
+                    int n=0;
+                    for(int i=0;i<ranked.length();i++){
+                        JSONObject suggestion=ranked.optJSONObject(i);
+                        Trending.Pick p=suggestion==null?null:ids.get(suggestion.optString("id"));
+                        if(p!=null){addPoster(railAi,p);n++;}
+                    }
+                    if(n==0)emptyRail(railAi,"No AI picks returned. Browse curated movies and series below.");
+                });}
+                public void onError(String message){runOnUiThread(()->{
+                    if(!isFinishing()&&railAi!=null){
+                        railAi.removeAllViews();
+                        emptyRail(railAi,"AI ranking unavailable. Curated movies and series remain below.");
+                    }
+                });}
+            });
     }
     private void addPoster(LinearLayout rail,Trending.Pick pick){
         AuroraPosterCard card=new AuroraPosterCard(this,pick,142,259,()->showTitle(pick));
