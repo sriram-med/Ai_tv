@@ -137,6 +137,7 @@ public final class ModernHomeActivity extends Activity {
         if(appGrid!=null)appGrid.removeAllViews();
         if(appRow!=null)appRow.removeAllViews();
         if(appStrip!=null)appStrip.setVisibility(gridView?View.GONE:View.VISIBLE);
+        if(appGrid!=null)appGrid.setColumnCount(gridColumns);
         if(appGrid!=null)appGrid.setVisibility(gridView?View.VISIBLE:View.GONE);
         Intent tv=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         Intent mobile=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
@@ -175,7 +176,9 @@ public final class ModernHomeActivity extends Activity {
                 icon.setImageDrawable(bannerArt != null ? bannerArt : info.loadIcon(getPackageManager()));
                 icon.setScaleType(bannerArt != null ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
             } catch(Exception ignored){}
-            tile.addView(icon,new LinearLayout.LayoutParams(dp(120),dp(78)));
+            int usable=(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-86;
+            int tileDp=gridView?Math.max(112,usable/gridColumns-15):173;
+            tile.addView(icon,new LinearLayout.LayoutParams(dp(Math.max(72,tileDp-28)),dp(75)));
             boolean pinned=favorites().getBoolean(pkg,false);
             TextView title=text((pinned ? "★  " : "") + info.loadLabel(getPackageManager()).toString(),15,true);
             title.setGravity(Gravity.CENTER);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -191,7 +194,7 @@ public final class ModernHomeActivity extends Activity {
             if(gridView && appGrid!=null){
                 GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
                     GridLayout.spec(count/gridColumns),GridLayout.spec(count%gridColumns));
-                lp.width=dp(173);lp.height=dp(153);
+                lp.width=dp(tileDp);lp.height=dp(153);
                 lp.setMargins(dp(3),dp(6),dp(12),dp(12));
                 appGrid.addView(tile,lp);
             }else{
@@ -517,6 +520,7 @@ public final class ModernHomeActivity extends Activity {
         TextView hint=text("Hold OK for favorites and app controls  ·  Use the remote to navigate",13,false);
         hint.setTextColor(0xFF93ACB1);body.addView(hint);
         appGrid=new GridLayout(this);appGrid.setColumnCount(gridColumns);
+        appGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
         appGrid.setClipChildren(false);appGrid.setClipToPadding(false);
         LinearLayout.LayoutParams gridP=new LinearLayout.LayoutParams(-1,-2);
         gridP.topMargin=dp(12);body.addView(appGrid,gridP);
