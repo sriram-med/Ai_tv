@@ -61,6 +61,8 @@ public final class ModernHomeActivity extends Activity {
     private boolean allApps=false;
     private String filterText="";
     private boolean gamesOnly=false;
+    private boolean favoritesOnly=false;
+    private boolean showHidden=false;
     private int sortMode=0;
     private TextView subtitle, weatherText, clockText, updateText;
     private final Handler timer = new Handler(Looper.getMainLooper());
@@ -124,6 +126,7 @@ public final class ModernHomeActivity extends Activity {
     private void systemSettings() {
         launch(new Intent(android.provider.Settings.ACTION_SETTINGS));
     }
+    private SharedPreferences hiddenApps(){return getSharedPreferences("aurora_hidden_apps",MODE_PRIVATE);}
     private SharedPreferences favorites() {
         return getSharedPreferences("ai_tv_favorites", MODE_PRIVATE);
     }
@@ -153,6 +156,12 @@ public final class ModernHomeActivity extends Activity {
         Collections.sort(apps,(a,b)->{
             boolean af=favorites().getBoolean(a.activityInfo.packageName,false);
             boolean bf=favorites().getBoolean(b.activityInfo.packageName,false);
+            if(sortMode==2){
+                List<String> recent=RecentApps.all(this);
+                int ia=recent.indexOf(a.activityInfo.packageName),ib=recent.indexOf(b.activityInfo.packageName);
+                if(ia<0)ia=Integer.MAX_VALUE;if(ib<0)ib=Integer.MAX_VALUE;
+                if(ia!=ib)return Integer.compare(ia,ib);
+            }
             if (!allApps && af != bf) return af ? -1 : 1;
             int result=String.CASE_INSENSITIVE_ORDER.compare(
                 a.loadLabel(getPackageManager()).toString(),b.loadLabel(getPackageManager()).toString());
@@ -162,6 +171,8 @@ public final class ModernHomeActivity extends Activity {
         for(ResolveInfo info:apps) {
             String visible=info.loadLabel(getPackageManager()).toString();
             if(!filterText.isEmpty()&&!visible.toLowerCase(Locale.ROOT).contains(filterText.toLowerCase(Locale.ROOT)))continue;
+            if(!showHidden && hiddenApps().getBoolean(info.activityInfo.packageName,false))continue;
+            if(favoritesOnly && !favorites().getBoolean(info.activityInfo.packageName,false))continue;
             if(gamesOnly){try{
                 if(getPackageManager().getApplicationInfo(info.activityInfo.packageName,0).category != android.content.pm.ApplicationInfo.CATEGORY_GAME)continue;
             }catch(Exception ex){continue;}}
@@ -304,15 +315,20 @@ public final class ModernHomeActivity extends Activity {
         row.topMargin=dp(8);body.addView(strip,row);
     }
     private void showAppActions(String pkg,String name) {
-        String[] items={"Launch","Toggle favorite","App information","Uninstall"};
+        String[] items={"Launch","Toggle favorite","Hide / unhide app","App information","Uninstall"};
         new AlertDialog.Builder(this).setTitle(name.replace("★  ",""))
             .setItems(items,(dialog,which)->{
                 if(which==0){Intent i=getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
                     if(i==null)i=getPackageManager().getLaunchIntentForPackage(pkg);
                     if(i!=null)launch(i);}
                 if(which==1)toggleFavorite(pkg);
-                if(which==2)openAppInfo(pkg);
-                if(which==3)launch(new Intent(Intent.ACTION_DELETE,Uri.parse("package:"+pkg)));
+                if(which==2){
+                    boolean hide=!hiddenApps().getBoolean(pkg,false);
+                    hiddenApps().edit().putBoolean(pkg,hide).apply();
+                    showHidden=false;addApps();subtitle.setText(hide?"App hidden. Use MORE to show hidden apps.":"App visible.");
+                }
+                if(which==3)openAppInfo(pkg);
+                if(which==4)launch(new Intent(Intent.ACTION_DELETE,Uri.parse("package:"+pkg)));
             }).show();
     }
     private void openAppInfo(String pkg) {
@@ -431,15 +447,16 @@ public final class ModernHomeActivity extends Activity {
             "Search installed apps","Show games only","Clear search and filters","Refresh weather","Set weather location",
             "Check for updates","Make default Home launcher","Android system settings","Motion level",
             "AI Discovery","Refresh app collection","Choose custom wallpaper","Restore Aurora wallpaper",
-            "Switch grid / horizontal row","Show / hide app labels","Grid: 4 columns","Grid: 5 columns","Grid: 6 columns"};
+            "Switch grid / horizontal row","Show / hide app labels","Grid: 4 columns","Grid: 5 columns","Grid: 6 columns",
+            "Favorites only","Show hidden apps","Hide hidden apps","Sort by recent usage","Reset app preferences"};
         new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
             switch(i){
-                case 0: allApps=false;gamesOnly=false;sortMode=0;addApps();break;
-                case 1: allApps=true;gamesOnly=false;sortMode=0;addApps();break;
+                case 0: allApps=false;gamesOnly=false;favoritesOnly=false;sortMode=0;addApps();break;
+                case 1: allApps=true;gamesOnly=false;favoritesOnly=false;sortMode=0;addApps();break;
                 case 2: allApps=true;gamesOnly=false;sortMode=1;addApps();break;
                 case 3:searchApps();break;
                 case 4:gamesOnly=true;filterText="";addApps();break;
-                case 5:gamesOnly=false;filterText="";addApps();break;
+                case 5:gamesOnly=false;favoritesOnly=false;filterText="";addApps();break;
                 case 6:refreshWeather();break;
                 case 7:configureWeather();break;
                 case 8:checkUpdates();break;
@@ -455,6 +472,18 @@ public final class ModernHomeActivity extends Activity {
                 case 18:gridColumns=4;appGrid.setColumnCount(4);addApps();break;
                 case 19:gridColumns=5;appGrid.setColumnCount(5);addApps();break;
                 case 20:gridColumns=6;appGrid.setColumnCount(6);addApps();break;
+                case 21:favoritesOnly=true;gamesOnly=false;filterText="";addApps();break;
+                case 22:showHidden=true;addApps();break;
+                case 23:showHidden=false;addApps();break;
+                case 24:sortMode=2;favoritesOnly=false;addApps();break;
+                case 25:new AlertDialog.Builder(this).setTitle("Reset app layout and filters")
+                    .setMessage("Restore default ordering, labels and hidden apps? Favorites are preserved.")
+                    .setPositiveButton("Reset",(x,y)->{
+                        hiddenApps().edit().clear().apply();
+                        showHidden=false;favoritesOnly=false;gamesOnly=false;filterText="";
+                        gridView=true;gridColumns=5;hideLabels=false;allApps=false;sortMode=0;
+                        addApps();
+                    }).setNegativeButton("Cancel",null).show();break;
                 default:break;
             }
         }).show();
