@@ -147,8 +147,12 @@ public final class ModernHomeActivity extends Activity {
             tile.setGravity(Gravity.CENTER);tile.setPadding(dp(12),dp(12),dp(12),dp(12));
             tile.setBackground(shape(PANEL,0x66556E77,16));
             ImageView icon=new ImageView(this);
-            try {icon.setImageDrawable(info.loadIcon(getPackageManager()));}catch(Exception ignored){}
-            tile.addView(icon,new LinearLayout.LayoutParams(dp(64),dp(64)));
+            try {
+                Drawable bannerArt=info.loadBanner(getPackageManager());
+                icon.setImageDrawable(bannerArt != null ? bannerArt : info.loadIcon(getPackageManager()));
+                icon.setScaleType(bannerArt != null ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
+            } catch(Exception ignored){}
+            tile.addView(icon,new LinearLayout.LayoutParams(dp(120),dp(78)));
             boolean pinned=favorites().getBoolean(pkg,false);
             TextView title=text((pinned ? "★  " : "") + info.loadLabel(getPackageManager()).toString(),15,true);
             title.setGravity(Gravity.CENTER);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -160,7 +164,7 @@ public final class ModernHomeActivity extends Activity {
                 if(i==null)i=getPackageManager().getLaunchIntentForPackage(pkg);
                 if(i!=null)launch(i);else subtitle.setText("No launchable activity for "+pkg);
             });
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(160),dp(152));lp.setMargins(dp(3),dp(7),dp(13),dp(12));
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(173),dp(153));lp.setMargins(dp(3),dp(7),dp(13),dp(12));
             appRow.addView(tile,lp);if(++count==1)tile.requestFocus();
         }
         if(count==0)appRow.addView(text("No apps found. Check launcher permissions.",17,false));
