@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [release/ai-tv-1.8.0]
   push:
-    branches: [fix/ai-button-ota, feature/ai-search-studio, feature/native-recommenders, fix/recommendation-catalog, fix/ai-layout-viewport]
+    branches: [fix/ai-button-ota, feature/ai-search-studio, feature/native-recommenders, fix/recommendation-catalog, fix/ai-layout-viewport, feature/regional-catalog]
 permissions:
   contents: read
 jobs:

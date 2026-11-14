@@ -23,12 +23,16 @@ source.rename(dest)
 import shutil
 shutil.copy2("app/src/main/java/com/techpp/glass/ContentRecommender.java", dest / "ContentRecommender.java")
 shutil.copy2("integration/tvos/AiCatalog.java", dest / "AiCatalog.java")
+shutil.copy2("integration/tvos/RegionalCatalog.java", dest / "RegionalCatalog.java")
+shutil.copy2("integration/tvos/TvMediaPolicy.java", dest / "TvMediaPolicy.java")
+shutil.copy2("integration/tvos/assets/regional_catalogs.json.gz", root / "assets/regional_catalogs.json.gz")
 shutil.copy2("vendor/recommenders/LICENSE", root / "assets/RECOMMENDERS-LICENSE.txt")
 
 manifest = root / "AndroidManifest.xml"
 content = manifest.read_text()
 assert 'android:label="tvOS Launcher"' in content
 content = content.replace('android:label="tvOS Launcher"', 'android:label="AI TV · Glass"')
+content=content.replace("<queries>",'<queries>\n        <package android:name="com.nuvio.tv" />',1)
 manifest.write_text(content)
 
 # Upstream's real updater must never suggest its differently signed APK.
@@ -99,10 +103,34 @@ helper = r'''
     private android.widget.EditText aiSearchInput;
     private View aiFirstKey;
     private LinearLayout aiSearchChrome, aiKeyboard;
+    private TextView regionButton;
+    private String selectedLanguage="";
+
+    private void chooseRegion() {
+        new AlertDialog.Builder(a).setTitle("Regional catalogue")
+            .setSingleChoiceItems(RegionalCatalog.NAMES,RegionalCatalog.index(selectedLanguage),(dialog,which)->{
+                selectedLanguage=RegionalCatalog.CODES[which];
+                a.getSharedPreferences("ai_regions",0).edit().putString("language",selectedLanguage).apply();
+                regionButton.setText(selectedLanguage.isEmpty()?"REGION":RegionalCatalog.name(selectedLanguage).toUpperCase(java.util.Locale.ROOT));
+                aiKeyboard.setVisibility(View.GONE);dialog.dismiss();aiPick(q(),"");
+            }).setNegativeButton("Close",null).show();
+    }
+    private void openNuvio() {
+        Intent launch=a.getPackageManager().getLeanbackLaunchIntentForPackage(TvMediaPolicy.NUVIO_PACKAGE);
+        if(launch==null)launch=a.getPackageManager().getLaunchIntentForPackage(TvMediaPolicy.NUVIO_PACKAGE);
+        if(launch!=null){a.startActivity(launch);return;}
+        new AlertDialog.Builder(a).setTitle("Nuvio TV is not installed")
+            .setMessage("Install Nuvio TV to open recommended titles and use its configured library and add-ons.")
+            .setPositiveButton("Official download",(dialog,which)->{
+                try {a.startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://github.com/NuvioMedia/NuvioTV/releases/latest")));}
+                catch(Exception unavailable){android.widget.Toast.makeText(a,"Open github.com/NuvioMedia/NuvioTV/releases on your phone to install Nuvio TV.",android.widget.Toast.LENGTH_LONG).show();}
+            }).setNegativeButton("Close",null).show();
+    }
 
     /** Persistent search tools live outside result rails so recommendations cannot hide them. */
     private void setupAiSearch() {
         aiMode = true;
+        selectedLanguage=a.getSharedPreferences("ai_regions",0).getString("language","");
         if (aiSearchChrome != null) return;
         keyScroll.setVisibility(View.GONE);
         queryView.setText("AI DISCOVERY");
@@ -151,6 +179,9 @@ helper = r'''
             aiKeyboard.setVisibility(aiKeyboard.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);
             if(aiKeyboard.getVisibility()==View.VISIBLE && aiFirstKey!=null)aiFirstKey.requestFocus();
         }));
+        regionButton=(TextView)chip(selectedLanguage.isEmpty()?"REGION":RegionalCatalog.name(selectedLanguage).toUpperCase(java.util.Locale.ROOT),this::chooseRegion);
+        bar.addView(regionButton);
+        bar.addView(chip("NUVIO",this::openNuvio));
         aiSearchChrome.addView(bar);
         aiSearchInput.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s,int start,int count,int after) {}
@@ -206,7 +237,7 @@ helper = r'''
         android.view.inputmethod.InputMethodManager ime =
             (android.view.inputmethod.InputMethodManager) a.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
         if (ime != null) ime.hideSoftInputFromWindow(aiSearchInput.getWindowToken(), 0);
-        if (rank) aiPick(prompt, "");
+        if (rank || !selectedLanguage.isEmpty()) aiPick(prompt, "");
         else setQuery(prompt);
     }
 
@@ -282,11 +313,12 @@ helper = r'''
         a.handler.removeCallbacks(fetch);
         final int requestGeneration = ++gen;
         final String queryText = prompt == null ? "" : prompt.trim();
+        final String requestLanguage=selectedLanguage;
         list.removeAllViews();
         addNote("Finding movies and series for you...");
         net.execute(() -> {
             AiCatalog.Result fetched;
-            try { fetched=AiCatalog.load(a,queryText,type,apps); }
+            try { fetched=AiCatalog.load(a,queryText,type,apps,requestLanguage); }
             catch(Exception e) { fetched=new AiCatalog.Result(new ArrayList<>(),"Catalog unavailable. Select RETRY."); }
             AiCatalog.Result result=fetched;
             List<Search.Title> ranked;
@@ -322,7 +354,12 @@ data = data.replace(anchor, helper + anchor)
 
 # Empty AI searches return to the mood browser, with search tools still visible.
 data = data.replace('    void render() {',
-    '    void render() {\n        if (aiMode && q().isEmpty()) { openAiChooser(); return; }', 1)
+    '    void render() {\n        if (aiMode && q().isEmpty()) { openAiChooser(); return; }\n        if (aiMode && !selectedLanguage.isEmpty()) { list.removeAllViews(); addNote("Searching the "+RegionalCatalog.name(selectedLanguage)+" catalogue..."); return; }', 1)
+# Regional text entry stays within the selected language catalogue.
+data=data.replace('        Search.cancel();\n        render();\n        String q = q();',
+    '        Search.cancel();\n        render();\n        if(aiMode && !selectedLanguage.isEmpty()) {\n            if(q().length()>=2)a.handler.postDelayed(fetch,DEBOUNCE_MS);\n            return;\n        }\n        String q = q();',1)
+data=data.replace('    void fetchTitles() {',
+    '    void fetchTitles() {\n        if(aiMode && !selectedLanguage.isEmpty()) { aiPick(q(),""); return; }',1)
 # Keep custom keyboard and hardware/IME input synchronized. Hardware text goes to
 # EditText itself when it owns focus; elsewhere retain upstream remote typing.
 data = data.replace('    View firstKey() {\n',
@@ -356,6 +393,31 @@ badge = r'''
 '''
 data = data.replace(anchor, anchor + "\n" + badge)
 search.write_text(data)
+# Nuvio and Stremio remain individually selectable when both are installed.
+search_api=dest / "Search.java"
+api=search_api.read_text()
+start=api.index('    static void addStremio(Context c, Title t) {')
+end=api.index('    static String tidyService',start)
+api=api[:start]+'''    static void addStremio(Context c, Title t) {
+        if(t.imdb.isEmpty())return;
+        for(Suggestions.Provider p:new Suggestions.Provider[]{Suggestions.NUVIO,Suggestions.STREMIO}) {
+            if(!Suggestions.installed(c,p.pkg))continue;
+            boolean exists=false;for(Offer current:t.offers)if(p.pkg.equals(current.pkg))exists=true;
+            if(exists)continue;
+            Offer o=new Offer();o.service=p.name;o.tech=p==Suggestions.NUVIO?"nuvio":"stremio";
+            o.monetization="STREMIO";o.pkg=p.pkg;t.offers.add(o);
+        }
+    }
+
+'''+api[end:]
+api=api.replace('        for (Offer o : raw) {','        for (Offer o : raw) {\n            if(TvMediaPolicy.ticketOffer(o.monetization,o.service,o.tech,o.web))continue;',1)
+api=api.replace('Suggestions.openStremio(c, it, Suggestions.stremioApp(c));','Suggestions.openStremio(c, it, Suggestions.NUVIO.pkg.equals(o.pkg)?Suggestions.NUVIO:Suggestions.STREMIO);',1)
+search_api.write_text('// Modified for AI TV (2026): explicit Nuvio routing and no cinema booking offers.\n'+api)
+suggestions_api=dest / "Suggestions.java"
+api=suggestions_api.read_text()
+api=api.replace('"nuvio://detail/" + type + "/" + it.link','TvMediaPolicy.nuvioUri(it.type,it.link)',1)
+suggestions_api.write_text('// Modified for AI TV (2026): verified Nuvio title URI routing.\n'+api)
+
 # Make AI visible in the actual default Night Scenes home, not just Classic mode.
 scene = dest / "SceneHome.java"
 scene_code = scene.read_text()
