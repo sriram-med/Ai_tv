@@ -23,7 +23,7 @@ time.sleep(2)
 root = hierarchy()
 texts = ' '.join(n.get('text', '') for n in root.iter('node'))
 Path('tv-preview-shots/ai-chooser.xml').write_text(ET.tostring(root, encoding='unicode'))
-if 'AI DISCOVERY' not in texts or 'GPT RANK' not in texts or 'SEARCH' not in texts:
+if 'AI DISCOVERY' not in texts or 'RECOMMEND' not in texts or 'SEARCH' not in texts:
     raise SystemExit('FAIL: AI button did not open AI discovery chooser: ' + texts)
 # The editable field is focused on entry; test actual hardware/IME text delivery.
 adb('shell', 'input', 'text', 'alien')
@@ -44,6 +44,20 @@ root = hierarchy()
 if not any(n.get('class') == 'android.widget.EditText' and n.get('text') == 'alien' for n in root.iter('node')):
     raise SystemExit('FAIL: search results removed search input')
 Path('tv-preview-shots/ai-search.xml').write_text(ET.tostring(root,encoding='unicode'))
+# Exercise recommendations with a clean app install: no GPT key or pairing session.
+button = next(n for n in root.iter('node') if n.get('text') == 'RECOMMEND')
+x1,y1,x2,y2 = map(int,re.findall(r'\d+',button.get('bounds','')))
+adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2))
+for attempt in range(25):
+    time.sleep(1)
+    root=hierarchy()
+    labels=' '.join(n.get('text','') for n in root.iter('node'))
+    if any(s in labels for s in ('CONNECT GPT','GPT RANK','Secure AI pairing')):
+        raise SystemExit('FAIL: removed GPT setup UI reappeared')
+    if 'Recommenders TF-IDF' in labels: break
+else:
+    raise SystemExit('FAIL: native recommendations did not finish')
+Path('tv-preview-shots/native-recommendations.xml').write_text(ET.tostring(root,encoding='unicode'))
 adb('shell', 'input', 'keyevent', '22')
 adb('shell', 'input', 'keyevent', '21')
-print('PASS: signed upgrade, AI chooser, typed search, persistent search input and remote keyboard controls')
+print('PASS: signed upgrade, AI chooser, typed search, persistent search input, remote keyboard and keyless native recommendations')
