@@ -10,6 +10,7 @@ import android.widget.GridLayout;
 import android.widget.EditText;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import android.text.InputType;
 import android.content.ActivityNotFoundException;
@@ -47,6 +48,8 @@ public final class ModernHomeActivity extends Activity {
     private static final int BG=0xFF08151B, PANEL=0xE620303A, ACCENT=0xFFE5B97A, CYAN=0xFF89E5D4;
     private LinearLayout body, appRow;
     private FrameLayout rootFrame;
+    private ImageView wallpaperImage;
+    private static final int WALLPAPER_PICKER=431;
     private boolean allApps=false;
     private String filterText="";
     private boolean gamesOnly=false;
@@ -293,11 +296,52 @@ public final class ModernHomeActivity extends Activity {
                 filterText="";gamesOnly=false;addApps();
             }).setNegativeButton("Cancel",null).show();
     }
+    private void pickWallpaper() {
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.setType("image/*");
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try{startActivityForResult(i,WALLPAPER_PICKER);}
+        catch(Exception ex){subtitle.setText("Install a file explorer to select a wallpaper image.");}
+    }
+    private void loadWallpaper() {
+        String path=getSharedPreferences("aurora_wallpaper",MODE_PRIVATE).getString("uri",null);
+        if(path==null || wallpaperImage==null){if(wallpaperImage!=null)wallpaperImage.setVisibility(View.GONE);return;}
+        final ImageView target=wallpaperImage;
+        new Thread(()->{
+            android.graphics.Bitmap bitmap=null;
+            try(InputStream in=getContentResolver().openInputStream(Uri.parse(path))){
+                BitmapFactory.Options options=new BitmapFactory.Options();
+                options.inSampleSize=4;
+                bitmap=BitmapFactory.decodeStream(in,null,options);
+            }catch(Exception ignored){}
+            final android.graphics.Bitmap result=bitmap;
+            runOnUiThread(()->{
+                if(isFinishing()||target!=wallpaperImage)return;
+                if(result!=null){target.setImageBitmap(result);target.setVisibility(View.VISIBLE);}
+                else {target.setVisibility(View.GONE);if(subtitle!=null)subtitle.setText("Wallpaper unavailable; Aurora background restored.");}
+            });
+        },"AuroraWallpaper").start();
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        if(request!=WALLPAPER_PICKER||result!=RESULT_OK||data==null||data.getData()==null)return;
+        Uri uri=data.getData();
+        try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
+        catch(Exception ignored){}
+        getSharedPreferences("aurora_wallpaper",MODE_PRIVATE).edit().putString("uri",uri.toString()).apply();
+        loadWallpaper();
+    }
+    private void resetWallpaper() {
+        getSharedPreferences("aurora_wallpaper",MODE_PRIVATE).edit().remove("uri").apply();
+        if(wallpaperImage!=null){wallpaperImage.setImageDrawable(null);wallpaperImage.setVisibility(View.GONE);}
+        if(subtitle!=null)subtitle.setText("Aurora background restored");
+    }
     private void showMore() {
         final String[] labels={"Display favorites first","Show all apps (alphabetical)","Reverse alphabetical sort",
             "Search installed apps","Show games only","Clear search and filters","Refresh weather","Set weather location",
             "Check for updates","Make default Home launcher","Android system settings","Motion level",
-            "AI Discovery","Refresh app collection"};
+            "AI Discovery","Refresh app collection","Choose custom wallpaper","Restore Aurora wallpaper"};
         new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
             switch(i){
                 case 0: allApps=false;gamesOnly=false;sortMode=0;addApps();break;
@@ -314,6 +358,8 @@ public final class ModernHomeActivity extends Activity {
                 case 11:showMotion();break;
                 case 12:launch(new Intent(this,AiDiscoveryActivity.class));break;
                 case 13:addApps();break;
+                case 14:pickWallpaper();break;
+                case 15:resetWallpaper();break;
                 default:break;
             }
         }).show();
@@ -330,6 +376,11 @@ public final class ModernHomeActivity extends Activity {
         getWindow().setStatusBarColor(BG);
         rootFrame=new FrameLayout(this);
         rootFrame.addView(new AuroraBackdrop(this),new FrameLayout.LayoutParams(-1,-1));
+        wallpaperImage=new ImageView(this);
+        wallpaperImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        wallpaperImage.setAlpha(.32f);
+        wallpaperImage.setVisibility(View.GONE);
+        rootFrame.addView(wallpaperImage,new FrameLayout.LayoutParams(-1,-1));
         ScrollView scroll=new ScrollView(this);
         scroll.setClipToPadding(false);
         scroll.setFillViewport(true);
@@ -438,6 +489,7 @@ public final class ModernHomeActivity extends Activity {
         footerP.topMargin=dp(8);body.addView(footer,footerP);
         timer.post(tick);
         refreshWeather();
+        loadWallpaper();
     }
     @Override protected void onDestroy() {
         timer.removeCallbacks(tick);
