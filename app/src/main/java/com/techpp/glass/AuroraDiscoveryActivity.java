@@ -251,8 +251,17 @@ public final class AuroraDiscoveryActivity extends Activity {
         TextView info=text(reason!=null&&!reason.isEmpty()?reason:(pick.meta==null?"":pick.meta),14,false);
         info.setTextColor(0xFFAFCAC7);info.setMaxLines(2);copy.addView(info);
         item.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
-        TextView launch=button("OPEN PROVIDER","Open streaming service",()->openProvider(pick));
-        item.addView(launch,new LinearLayout.LayoutParams(density(160),density(49)));
+        if(MediaCompanions.installedNuvio(this)!=null && pick.id>0 &&
+            ("movie".equals(pick.kind)||"tv".equals(pick.kind))){
+            TextView nuvio=button("IN NUVIO","Show this title in Nuvio TV",()->{
+                if(!MediaCompanions.openNuvioTitle(this,pick.id,pick.kind))
+                    status.setText("Nuvio could not open this title. Use MEDIA COMPANIONS.");
+            });
+            LinearLayout.LayoutParams n=new LinearLayout.LayoutParams(density(134),density(49));
+            n.rightMargin=density(10);item.addView(nuvio,n);
+        }
+        TextView launch=button("PROVIDER","Open streaming service",()->openProvider(pick));
+        item.addView(launch,new LinearLayout.LayoutParams(density(150),density(49)));
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);
         p.bottomMargin=density(10);list.addView(item,p);
     }
