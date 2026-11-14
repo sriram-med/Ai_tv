@@ -110,7 +110,10 @@ public final class AuroraDiscoveryActivity extends Activity {
         LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
         TextView label=text("RECOMMENDATIONS",19,true);
         row.addView(label,new LinearLayout.LayoutParams(0,density(48),1));
-        row.addView(button("PAIR AI","Optional secure device pairing",this::pairDialog));
+        row.addView(button("REFRESH CATALOG","Fetch available titles from streaming sources",this::refreshCatalog));
+        TextView pair=button("PAIR AI","Optional secure device pairing",this::pairDialog);
+        LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-2,-2);pp.leftMargin=density(12);
+        row.addView(pair,pp);
         LinearLayout.LayoutParams rowp=new LinearLayout.LayoutParams(-1,-2);
         rowp.topMargin=density(8);screen.addView(row,rowp);
         status=text("Loading available titles...",14,false);
@@ -120,7 +123,42 @@ public final class AuroraDiscoveryActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,0,1);
         lp.topMargin=density(8);screen.addView(scroll,lp);
         search(false);
+        new Trending(this).refreshIfStale(picks ->{
+            if(!isFinishing() && query!=null && list!=null && list.getChildCount()<=14) search(false);
+        });
         query.requestFocus();
+    }
+    private void refreshCatalog() {
+        status.setText("Refreshing streaming titles. This requires an internet connection and a supported catalog source.");
+        new Trending(this).refreshIfStale(picks ->{
+            if(isFinishing())return;
+            if(picks.isEmpty())status.setText("No catalog returned. Local app browsing is still available.");
+            else search(false);
+        });
+    }
+    private void installedProviders() {
+        java.util.Set<String> seen=new java.util.HashSet<>();
+        android.content.pm.PackageManager pm=getPackageManager();
+        Intent tv=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
+        List<android.content.pm.ResolveInfo> installed=pm.queryIntentActivities(tv,0);
+        int shown=0;
+        for(android.content.pm.ResolveInfo app:installed){
+            String pkg=app.activityInfo.packageName;
+            if(pkg.equals(getPackageName())||!seen.add(pkg))continue;
+            String name=app.loadLabel(pm).toString();
+            String lower=name.toLowerCase(Locale.ROOT);
+            if(!lower.matches(".*(netflix|prime|youtube|hotstar|zee5|sony|disney|hulu|apple tv|crunchyroll|mubi|mx player|stream|video|plex|jio|tubi|pluto|stremio).*"))continue;
+            TextView provider=button("OPEN "+name.toUpperCase(Locale.ROOT),
+                    "Browse "+name+" directly",()->{
+                        Intent intent=pm.getLeanbackLaunchIntentForPackage(pkg);
+                        if(intent==null)intent=pm.getLaunchIntentForPackage(pkg);
+                        if(intent!=null)startActivity(intent);
+                    });
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,density(56));
+            p.bottomMargin=density(9);list.addView(provider,p);
+            if(++shown>=12)break;
+        }
+        if(shown==0)list.addView(text("No streaming applications detected. Install a streaming service or refresh the catalog.",17,false));
     }
     private void pairDialog() {
         AiTvPairingClient session=new AiTvPairingClient(this);
@@ -165,6 +203,7 @@ public final class AuroraDiscoveryActivity extends Activity {
             TextView empty=text("No catalog matches yet. Try a different term or return to Home to refresh recommendations.",19,false);
             empty.setPadding(density(22),density(26),density(22),density(26));
             empty.setBackground(bg(PANEL,0xFF48636B));list.addView(empty);
+            installedProviders();
             return;
         }
         status.setText(all.size()+" catalog results"+(useAi?"  •  Checking AI availability":"  •  Available offline"));
