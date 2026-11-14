@@ -1,6 +1,14 @@
 package com.techpp.glass;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.graphics.drawable.Drawable;
+import android.provider.Settings;
+import android.net.Uri;
+import android.widget.FrameLayout;
+import android.widget.GridLayout;
+import android.widget.EditText;
+import android.text.InputType;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
@@ -32,8 +40,11 @@ import java.util.Set;
 
 /** Native, DPAD-first AI TV 2.0 home. Original Talkies home remains available as a recovery activity. */
 public final class ModernHomeActivity extends Activity {
-    private static final int BG=0xFF090F22, PANEL=0xFF182341, ACCENT=0xFF8C73FF, CYAN=0xFF57D7FF;
+    private static final int BG=0xFF08151B, PANEL=0xE620303A, ACCENT=0xFFE5B97A, CYAN=0xFF89E5D4;
     private LinearLayout body, appRow;
+    private FrameLayout rootFrame;
+    private boolean allApps=false;
+    private int sortMode=0;
     private TextView subtitle, weatherText, clockText, updateText;
     private final Handler timer = new Handler(Looper.getMainLooper());
     private Weather weather;
@@ -44,7 +55,7 @@ public final class ModernHomeActivity extends Activity {
     private int dp(float value) {return (int)(value*getResources().getDisplayMetrics().density+.5f);}
     private GradientDrawable shape(int color,int stroke,int radius) {
         GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{color,color==PANEL?0xFF222D4F:color});
+                new int[]{color,color==PANEL?0xE62A3B48:color});
         d.setCornerRadius(dp(radius));d.setStroke(dp(1),stroke);return d;
     }
     private TextView text(String s,int sp,boolean bold) {
@@ -54,12 +65,12 @@ public final class ModernHomeActivity extends Activity {
     private void focus(View v) {
         v.setFocusable(true);
         v.setOnFocusChangeListener((item,on)->{
-            item.setBackground(shape(on?0xFF30335F:PANEL,on?CYAN:0xFF364568,18));
+            item.setBackground(shape(on?0xFF39564F:PANEL,on?CYAN:0x66556E77,16));
             item.animate().cancel();
             int motion=MotionPrefs.level(this);
             item.animate().scaleX(on&&motion>0?1.055f:1f).scaleY(on&&motion>0?1.055f:1f)
                     .translationZ(on&&motion>0?dp(12):0)
-                    .rotationY(on&&motion==2?-1.3f:0f)
+                    .rotationY(on&&motion==2?-0.7f:0f)
                     .setInterpolator(new DecelerateInterpolator(1.6f))
                     .setDuration(MotionPrefs.duration(this,210)).start();
             if(on&&subtitle!=null&&item.getTag() instanceof String)subtitle.setText((String)item.getTag());
@@ -67,7 +78,7 @@ public final class ModernHomeActivity extends Activity {
     }
     private TextView action(String label,String hint,Runnable run) {
         TextView b=text(label,17,true);b.setGravity(Gravity.CENTER);b.setPadding(dp(20),dp(14),dp(20),dp(14));
-        b.setBackground(shape(PANEL,0xFF364568,18));b.setTag(hint);focus(b);
+        b.setBackground(shape(PANEL,0x66556E77,16));b.setTag(hint);focus(b);
         b.setOnClickListener(v->run.run());return b;
     }
     private void launch(Intent intent) {
@@ -121,16 +132,17 @@ public final class ModernHomeActivity extends Activity {
         Collections.sort(apps,(a,b)->{
             boolean af=favorites().getBoolean(a.activityInfo.packageName,false);
             boolean bf=favorites().getBoolean(b.activityInfo.packageName,false);
-            if (af != bf) return af ? -1 : 1;
-            return String.CASE_INSENSITIVE_ORDER.compare(
+            if (!allApps && af != bf) return af ? -1 : 1;
+            int result=String.CASE_INSENSITIVE_ORDER.compare(
                 a.loadLabel(getPackageManager()).toString(),b.loadLabel(getPackageManager()).toString());
+            return sortMode==1 ? -result : result;
         });
         int count=0;
         for(ResolveInfo info:apps) {
             String pkg=info.activityInfo.packageName;
             LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);
             tile.setGravity(Gravity.CENTER);tile.setPadding(dp(12),dp(12),dp(12),dp(12));
-            tile.setBackground(shape(PANEL,0xFF364568,18));
+            tile.setBackground(shape(PANEL,0x66556E77,16));
             ImageView icon=new ImageView(this);
             try {icon.setImageDrawable(info.loadIcon(getPackageManager()));}catch(Exception ignored){}
             tile.addView(icon,new LinearLayout.LayoutParams(dp(64),dp(64)));
@@ -139,95 +151,182 @@ public final class ModernHomeActivity extends Activity {
             title.setGravity(Gravity.CENTER);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
             LinearLayout.LayoutParams tl=new LinearLayout.LayoutParams(-1,dp(36));tl.topMargin=dp(8);
             tile.addView(title,tl);tile.setTag(title.getText().toString());focus(tile);
-            tile.setOnLongClickListener(v->{toggleFavorite(pkg);return true;});
+            tile.setOnLongClickListener(v->{showAppActions(pkg,title.getText().toString());return true;});
             tile.setOnClickListener(v->{
                 Intent i=getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
                 if(i==null)i=getPackageManager().getLaunchIntentForPackage(pkg);
                 if(i!=null)launch(i);else subtitle.setText("No launchable activity for "+pkg);
             });
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(152),dp(146));lp.setMargins(dp(6),dp(8),dp(10),dp(14));
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(160),dp(152));lp.setMargins(dp(3),dp(7),dp(13),dp(12));
             appRow.addView(tile,lp);if(++count==1)tile.requestFocus();
         }
         if(count==0)appRow.addView(text("No apps found. Check launcher permissions.",17,false));
     }
+    private void showAppActions(String pkg,String name) {
+        String[] items={"Launch","Toggle favorite","App information","Uninstall"};
+        new AlertDialog.Builder(this).setTitle(name.replace("★  ",""))
+            .setItems(items,(dialog,which)->{
+                if(which==0){Intent i=getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
+                    if(i==null)i=getPackageManager().getLaunchIntentForPackage(pkg);
+                    if(i!=null)launch(i);}
+                if(which==1)toggleFavorite(pkg);
+                if(which==2)openAppInfo(pkg);
+                if(which==3)launch(new Intent(Intent.ACTION_DELETE,Uri.parse("package:"+pkg)));
+            }).show();
+    }
+    private void openAppInfo(String pkg) {
+        Intent i=new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+pkg));
+        launch(i);
+    }
+    private void chooseDefault() {
+        new AlertDialog.Builder(this).setTitle("Make AI TV your Home launcher")
+            .setMessage("Android controls the default Home app. Choose AI TV 2.0 in Home app settings, or press the Home button and select AI TV 2.0 → Always if prompted. Your TV manufacturer may restrict replacement launchers. This option never disables your original launcher.")
+            .setPositiveButton("Open Home app settings",(d,w)->{
+                try{startActivity(new Intent("android.settings.HOME_SETTINGS"));}
+                catch(Exception e){systemSettings();subtitle.setText("Select Apps → Default apps → Home app, if supported.");}
+            }).setNeutralButton("Home chooser",(d,w)->{
+                Intent i=new Intent(Intent.ACTION_MAIN);i.addCategory(Intent.CATEGORY_HOME);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                try{startActivity(Intent.createChooser(i,"Choose Home application"));}
+                catch(Exception e){subtitle.setText("Use Android TV settings to choose the Home app.");}
+            }).setNegativeButton("Cancel",null).show();
+    }
+    private void showMore() {
+        final String[] labels={"Display favorites first","Show all apps (alphabetical)","Reverse alphabetical sort",
+            "Recheck weather","Check for updates","Make default Home launcher",
+            "Android system settings","Motion level","AI Discovery"};
+        new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
+            switch(i){
+                case 0: allApps=false;sortMode=0;addApps();break;
+                case 1: allApps=true;sortMode=0;addApps();break;
+                case 2: allApps=true;sortMode=1;addApps();break;
+                case 3:refreshWeather();break;
+                case 4:checkUpdates();break;
+                case 5:chooseDefault();break;
+                case 6:systemSettings();break;
+                case 7:showMotion();break;
+                case 8:launch(new Intent(this,AiDiscoveryActivity.class));break;
+                default:break;
+            }
+        }).show();
+    }
+    private void navButton(LinearLayout bar,String title,String detail,Runnable click) {
+        TextView t=action(title,detail,click);
+        t.setTextSize(14);
+        t.setPadding(dp(14),dp(8),dp(14),dp(8));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(47),1);
+        p.rightMargin=dp(9);bar.addView(t,p);
+    }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);
+        rootFrame=new FrameLayout(this);
+        rootFrame.addView(new AuroraBackdrop(this),new FrameLayout.LayoutParams(-1,-1));
         ScrollView scroll=new ScrollView(this);
-        scroll.setFillViewport(true);scroll.setBackgroundColor(BG);
-        body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(42),dp(20),dp(42),dp(38));
-        scroll.addView(body);setContentView(scroll);
+        scroll.setClipToPadding(false);
+        scroll.setFillViewport(true);
+        body=new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(43),dp(21),dp(43),dp(30));
+        scroll.addView(body);
+        rootFrame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+        setContentView(rootFrame);
 
-        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView logo=text("AI  /  TV",30,true);logo.setTextColor(CYAN);
-        header.addView(logo,new LinearLayout.LayoutParams(0,dp(60),1));
-        clockText=text("",16,true);clockText.setTextColor(0xFFD0DCF5);
-        header.addView(clockText);
+        LinearLayout header=new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView monogram=text("◈",31,true);monogram.setTextColor(ACCENT);
+        header.addView(monogram);
+        LinearLayout identity=new LinearLayout(this);identity.setOrientation(LinearLayout.VERTICAL);
+        TextView logo=text(" AURORA  /  AI TV",21,true);logo.setLetterSpacing(.12f);
+        identity.addView(logo);
+        TextView tagline=text(" PERSONAL ENTERTAINMENT OS",11,true);
+        tagline.setLetterSpacing(.15f);tagline.setTextColor(0xFF9DB9BE);identity.addView(tagline);
+        LinearLayout.LayoutParams id=new LinearLayout.LayoutParams(0,-2,1);
+        header.addView(identity,id);
+        clockText=text("",15,true);
+        clockText.setTextColor(0xFFE8E4D8);header.addView(clockText);
         body.addView(header);
 
-        LinearLayout nav=new LinearLayout(this);nav.setGravity(Gravity.CENTER_VERTICAL);
-        addNav(nav,"DISCOVER","AI movie and series discovery",
+        LinearLayout nav=new LinearLayout(this);
+        nav.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams navp=new LinearLayout.LayoutParams(-1,-2);
+        navp.topMargin=dp(18);body.addView(nav,navp);
+        navButton(nav,"HOME","Your collection",()->{allApps=false;sortMode=0;addApps();});
+        navButton(nav,"AI DISCOVER","Personalized recommendations",()->launch(new Intent(this,AiDiscoveryActivity.class)));
+        navButton(nav,"ALL APPS","Browse every installed app",()->{allApps=true;addApps();});
+        navButton(nav,"WEATHER","Refresh local forecast",this::refreshWeather);
+        navButton(nav,"UPDATES","Download signed releases",this::checkUpdates);
+        navButton(nav,"DEFAULT HOME","Set as default launcher",this::chooseDefault);
+        navButton(nav,"MORE","Settings and controls",this::showMore);
+
+        LinearLayout feature=new LinearLayout(this);
+        feature.setGravity(Gravity.CENTER_VERTICAL);
+        feature.setPadding(dp(27),dp(22),dp(27),dp(22));
+        feature.setBackground(shape(0xD9223940,0x665D8B88,24));
+        LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);
+        fp.topMargin=dp(20);body.addView(feature,fp);
+
+        LinearLayout heroCopy=new LinearLayout(this);
+        heroCopy.setOrientation(LinearLayout.VERTICAL);
+        TextView kicker=text("CURATED FOR YOUR SCREEN",12,true);
+        kicker.setLetterSpacing(.17f);kicker.setTextColor(ACCENT);heroCopy.addView(kicker);
+        TextView headline=text("Your next obsession starts here.",31,true);
+        headline.setMaxLines(2);
+        LinearLayout.LayoutParams h=new LinearLayout.LayoutParams(-1,-2);h.topMargin=dp(6);
+        heroCopy.addView(headline,h);
+        subtitle=text("Movies, series, and everything you love. Reimagined.",16,false);
+        subtitle.setTextColor(0xFFCFDDDB);
+        heroCopy.addView(subtitle);
+        TextView explore=action("EXPLORE WITH AI  ›","Find your next movie or series",
                 ()->launch(new Intent(this,AiDiscoveryActivity.class)));
-        addNav(nav,"UPDATES","Check for and install signed GitHub releases",this::checkUpdates);
-        addNav(nav,"WEATHER","Refresh live weather",this::refreshWeather);
-        addNav(nav,"SETTINGS","Android TV system settings",this::systemSettings);
-        addNav(nav,"MOTION","Animation intensity",this::showMotion);
-        LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(-1,-2);np.topMargin=dp(12);
-        body.addView(nav,np);
+        explore.setTextSize(15);
+        explore.setBackground(shape(0xFFB6E9D6,0xFFB6E9D6,14));
+        explore.setTextColor(0xFF092122);
+        LinearLayout.LayoutParams exploreP=new LinearLayout.LayoutParams(dp(245),dp(53));
+        exploreP.topMargin=dp(16);
+        heroCopy.addView(explore,exploreP);
+        feature.addView(heroCopy,new LinearLayout.LayoutParams(0,-2,3));
 
-        LinearLayout hero=new LinearLayout(this);hero.setOrientation(LinearLayout.VERTICAL);
-        hero.setPadding(dp(28),dp(24),dp(28),dp(24));
-        hero.setBackground(shape(0xFF24254A,ACCENT,26));
-        LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=dp(20);
-        body.addView(hero,hp);
-        TextView eyebrow=text("YOUR SPACE  /  ENTERTAINMENT",14,true);
-        eyebrow.setTextColor(0xFF92DDFF);hero.addView(eyebrow);
-        TextView headline=text("Everything you love. One beautiful home.",30,true);
-        LinearLayout.LayoutParams hl=new LinearLayout.LayoutParams(-1,-2);hl.topMargin=dp(10);
-        hero.addView(headline,hl);
-        subtitle=text("Choose an app, discover a new show, or personalize your TV.",16,false);
-        subtitle.setTextColor(0xFFD1D9F0);hero.addView(subtitle);
-        weatherText=text("Weather · loading",19,true);
-        weatherText.setTextColor(0xFFFFE0A8);
-        LinearLayout.LayoutParams wl=new LinearLayout.LayoutParams(-1,-2);wl.topMargin=dp(16);
-        hero.addView(weatherText,wl);
-        updateText=text("Installed v"+SelfUpdate.installed(this)+"  •  CHECK UPDATES in navigation",14,false);
-        updateText.setTextColor(0xFFBFCBF2);hero.addView(updateText);
+        LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(18),dp(12),dp(16),dp(12));
+        info.setBackground(shape(0xC810282F,0x66556E77,18));
+        TextView forecastLabel=text("YOUR FORECAST",12,true);forecastLabel.setTextColor(ACCENT);
+        info.addView(forecastLabel);
+        weatherText=text("Checking forecast…",19,true);
+        LinearLayout.LayoutParams weatherP=new LinearLayout.LayoutParams(-1,-2);weatherP.topMargin=dp(8);
+        info.addView(weatherText,weatherP);
+        TextView updateLabel=text("SYSTEM",12,true);updateLabel.setTextColor(ACCENT);
+        LinearLayout.LayoutParams ul=new LinearLayout.LayoutParams(-1,-2);ul.topMargin=dp(17);
+        info.addView(updateLabel,ul);
+        updateText=text("v"+SelfUpdate.installed(this)+"  ·  Check updates",13,false);
+        updateText.setTextColor(0xFFE6E6E2);info.addView(updateText);
+        feature.addView(info,new LinearLayout.LayoutParams(0,-1,2));
 
-        LinearLayout featured=new LinearLayout(this);featured.setGravity(Gravity.CENTER_VERTICAL);
-        TextView recommend=action("✦  EXPLORE WITH AI","Search personalized recommendations",
-                ()->launch(new Intent(this,AiDiscoveryActivity.class)));
-        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,dp(70),1);
-        featured.addView(recommend,rp);
-        TextView refresh=action("↻  REFRESH","Reload installed apps and weather",()->{
-            addApps();refreshWeather();subtitle.setText("Home refreshed.");
-        });
-        LinearLayout.LayoutParams rf=new LinearLayout.LayoutParams(0,dp(70),1);rf.leftMargin=dp(16);
-        featured.addView(refresh,rf);
-        LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.topMargin=dp(18);
-        body.addView(featured,fp);
-
-        TextView appsLabel=text("YOUR APPS",22,true);
-        LinearLayout.LayoutParams al=new LinearLayout.LayoutParams(-1,-2);al.topMargin=dp(24);
-        body.addView(appsLabel,al);
-        TextView hint=text("Hold OK on an app to add or remove it from favorites. Favorites appear first.",14,false);
-        hint.setTextColor(0xFF9EACCD);body.addView(hint);
-        HorizontalScrollView hs=new HorizontalScrollView(this);
-        hs.setClipToPadding(false);hs.setHorizontalScrollBarEnabled(false);
+        LinearLayout titleRow=new LinearLayout(this);titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView appsLabel=text("Your collection",23,true);
+        titleRow.addView(appsLabel,new LinearLayout.LayoutParams(0,-2,1));
+        TextView sort=action("SORT & FILTER","Organize installed apps",this::showMore);
+        sort.setTextSize(13);titleRow.addView(sort);
+        LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(-1,-2);
+        titleP.topMargin=dp(19);body.addView(titleRow,titleP);
+        TextView hint=text("Hold OK for favorites and app controls  ·  Use the remote to navigate",13,false);
+        hint.setTextColor(0xFF93ACB1);body.addView(hint);
+        HorizontalScrollView strip=new HorizontalScrollView(this);
+        strip.setHorizontalScrollBarEnabled(false);
+        strip.setClipToPadding(false);
         appRow=new LinearLayout(this);appRow.setOrientation(LinearLayout.HORIZONTAL);
-        appRow.setClipChildren(false);hs.addView(appRow);
-        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(190));
-        ap.topMargin=dp(10);body.addView(hs,ap);
+        appRow.setClipChildren(false);appRow.setClipToPadding(false);
+        strip.addView(appRow);
+        LinearLayout.LayoutParams appsP=new LinearLayout.LayoutParams(-1,dp(182));
+        appsP.topMargin=dp(9);body.addView(strip,appsP);
         addApps();
-        TextView footer=text("AI TV 2.0  •  Native Android TV  •  Secure signed updates",13,false);
-        footer.setTextColor(0xFF8899B8);body.addView(footer);
-        timer.post(tick);refreshWeather();
-    }
-    private void addNav(LinearLayout row,String label,String hint,Runnable task) {
-        TextView b=action(label,hint,task);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(54),1);
-        lp.rightMargin=dp(10);row.addView(b,lp);
+
+        TextView footer=text("AURORA   •   AI TV 2.0   •   Designed for the big screen",12,false);
+        footer.setTextColor(0xFF819EA5);
+        LinearLayout.LayoutParams footerP=new LinearLayout.LayoutParams(-1,-2);
+        footerP.topMargin=dp(8);body.addView(footer,footerP);
+        timer.post(tick);
+        refreshWeather();
     }
     @Override protected void onDestroy() {
         timer.removeCallbacks(tick);
