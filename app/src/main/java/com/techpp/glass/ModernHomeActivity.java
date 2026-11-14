@@ -442,13 +442,27 @@ public final class ModernHomeActivity extends Activity {
         if(wallpaperImage!=null){wallpaperImage.setImageDrawable(null);wallpaperImage.setVisibility(View.GONE);}
         if(subtitle!=null)subtitle.setText("Aurora background restored");
     }
+    private void showSystemShortcuts() {
+        final String[] names={"Network & Wi-Fi","Bluetooth","Display & picture","Sound & audio",
+            "Storage","Accessibility","Date & time","Apps management","Input & keyboard",
+            "Device settings"};
+        final String[] actions={Settings.ACTION_WIFI_SETTINGS,Settings.ACTION_BLUETOOTH_SETTINGS,
+            Settings.ACTION_DISPLAY_SETTINGS,Settings.ACTION_SOUND_SETTINGS,
+            Settings.ACTION_INTERNAL_STORAGE_SETTINGS,Settings.ACTION_ACCESSIBILITY_SETTINGS,
+            Settings.ACTION_DATE_SETTINGS,Settings.ACTION_APPLICATION_SETTINGS,
+            Settings.ACTION_INPUT_METHOD_SETTINGS,Settings.ACTION_SETTINGS};
+        new AlertDialog.Builder(this).setTitle("TV SETTINGS").setItems(names,(d,i)->{
+            try{launch(new Intent(actions[i]));}
+            catch(Exception ex){subtitle.setText("This TV does not expose "+names[i]);}
+        }).setNegativeButton("Close",null).show();
+    }
     private void showMore() {
         final String[] labels={"Display favorites first","Show all apps (alphabetical)","Reverse alphabetical sort",
             "Search installed apps","Show games only","Clear search and filters","Refresh weather","Set weather location",
             "Check for updates","Make default Home launcher","Android system settings","Motion level",
             "AI Discovery","Refresh app collection","Choose custom wallpaper","Restore Aurora wallpaper",
             "Switch grid / horizontal row","Show / hide app labels","Grid: 4 columns","Grid: 5 columns","Grid: 6 columns",
-            "Favorites only","Show hidden apps","Hide hidden apps","Sort by recent usage","Reset app preferences"};
+            "Favorites only","Show hidden apps","Hide hidden apps","Sort by recent usage","Reset app preferences","TV system shortcuts"};
         new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
             switch(i){
                 case 0: allApps=false;gamesOnly=false;favoritesOnly=false;sortMode=0;addApps();break;
@@ -484,6 +498,7 @@ public final class ModernHomeActivity extends Activity {
                         gridView=true;gridColumns=5;hideLabels=false;allApps=false;sortMode=0;
                         addApps();
                     }).setNegativeButton("Cancel",null).show();break;
+                case 26:showSystemShortcuts();break;
                 default:break;
             }
         }).show();
