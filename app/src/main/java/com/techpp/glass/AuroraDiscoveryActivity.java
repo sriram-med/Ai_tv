@@ -216,7 +216,7 @@ public final class AuroraDiscoveryActivity extends Activity {
             return;
         }
         status.setText(all.size()+" catalog results"+(useAi?"  •  Checking AI availability":"  •  Available offline"));
-        for(Trending.Pick p:all)result(p,null);
+        renderPosterGroups(all,null);
         if(!useAi)return;
         AiTvPairingClient pairing=new AiTvPairingClient(this);
         if(!pairing.hasSession()){status.setText("Showing local results. For optional AI ranking, select PAIR AI and enter a one-time device code.");return;}
@@ -230,17 +230,72 @@ public final class AuroraDiscoveryActivity extends Activity {
         }
         ai.recommend(GATEWAY,pairing.currentToken(),query.getText().toString(),catalog,new AiRecommendationClient.Callback(){
             public void onSuccess(JSONArray picks){runOnUiThread(()->{
-                list.removeAllViews();
-                status.setText("AI-ranked recommendations  •  "+picks.length()+" picks");
+                status.setText("AI-ranked recommendations • Movies and series");
+                List<Trending.Pick> ordered=new ArrayList<>();
+                Map<String,String> reasons=new LinkedHashMap<>();
                 for(int i=0;i<picks.length();i++){
                     JSONObject item=picks.optJSONObject(i);
                     if(item==null)continue;
                     Trending.Pick pick=lookup.get(item.optString("id"));
-                    if(pick!=null)result(pick,item.optString("reason"));
+                    if(pick!=null){
+                        ordered.add(pick);
+                        reasons.put(pick.key(),item.optString("reason"));
+                    }
                 }
+                if(ordered.isEmpty())status.setText("No AI-ranked matches returned; showing local results.");
+                else renderPosterGroups(ordered,reasons);
             });}
             public void onError(String reason){runOnUiThread(()->status.setText("Local results remain available. AI gateway: "+reason));}
         });
+    }
+    /** Cinematic 5-column poster groups classified by verified catalog kind. */
+    private void renderPosterGroups(List<Trending.Pick> picks,Map<String,String> reasons){
+        list.removeAllViews();
+        List<Trending.Pick> movies=new ArrayList<>(),series=new ArrayList<>();
+        for(Trending.Pick p:picks){
+            if("movie".equals(p.kind))movies.add(p);
+            else if("tv".equals(p.kind))series.add(p);
+        }
+        appendPosterSection("FEATURE FILMS",movies,reasons);
+        appendPosterSection("SERIES & SHOWS",series,reasons);
+        if(movies.isEmpty()&&series.isEmpty())
+            list.addView(text("No displayable movie or series entries.",17,false));
+    }
+    private void appendPosterSection(String heading,List<Trending.Pick> picks,Map<String,String> reasons){
+        if(picks.isEmpty())return;
+        LinearLayout section=new LinearLayout(this);section.setOrientation(LinearLayout.VERTICAL);
+        TextView title=text(heading+"  /  "+picks.size()+" TITLES",19,true);
+        title.setTextColor(GOLD);
+        LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(-1,density(42));
+        titleP.topMargin=density(14);section.addView(title,titleP);
+        GridLayout grid=new GridLayout(this);grid.setColumnCount(5);
+        grid.setClipToPadding(false);grid.setClipChildren(false);
+        int shown=0;
+        for(Trending.Pick p:picks){
+            AuroraPosterCard card=new AuroraPosterCard(this,p,154,248,()->showTitle(p,reasons==null?null:reasons.get(p.key())));
+            GridLayout.LayoutParams gp=new GridLayout.LayoutParams(GridLayout.spec(shown/5),GridLayout.spec(shown%5));
+            gp.width=density(154);gp.height=density(248);
+            gp.setMargins(density(2),density(5),density(12),density(15));
+            grid.addView(card,gp);
+            if(shown<20)AuroraImdbRatings.lookup(this,p,score->{
+                if(!isFinishing())card.setImdb(score);
+            });
+            if(++shown>=25)break;
+        }
+        section.addView(grid,new LinearLayout.LayoutParams(-1,-2));
+        list.addView(section,new LinearLayout.LayoutParams(-1,-2));
+    }
+    private void showTitle(Trending.Pick pick,String reason){
+        String description=pick.meta==null?"":pick.meta;
+        if(reason!=null&&!reason.isEmpty())description+="\n\nAI recommendation: "+reason;
+        String[] actions={"Open streaming provider","Open in Nuvio TV","Open media companions"};
+        new AlertDialog.Builder(this).setTitle(pick.title).setMessage(description)
+            .setItems(actions,(dialog,which)->{
+                if(which==0)openProvider(pick);
+                if(which==1&&!MediaCompanions.openNuvioTitle(this,pick.id,pick.kind))
+                    status.setText("Nuvio could not open this title. Install or configure Nuvio.");
+                if(which==2)startActivity(new Intent(this,MediaHubActivity.class));
+            }).setNegativeButton("Close",null).show();
     }
     private void result(Trending.Pick pick,String reason) {
         LinearLayout item=new LinearLayout(this);item.setGravity(Gravity.CENTER_VERTICAL);
