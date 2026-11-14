@@ -2,6 +2,8 @@ package com.techpp.glass;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.role.RoleManager;
+import android.os.Build;
 import android.graphics.drawable.Drawable;
 import android.provider.Settings;
 import android.net.Uri;
@@ -50,6 +52,7 @@ public final class ModernHomeActivity extends Activity {
     private FrameLayout rootFrame;
     private ImageView wallpaperImage;
     private static final int WALLPAPER_PICKER=431;
+    private static final int HOME_ROLE_REQUEST=432;
     private boolean allApps=false;
     private String filterText="";
     private boolean gamesOnly=false;
@@ -248,6 +251,16 @@ public final class ModernHomeActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Make AI TV your Home launcher")
             .setMessage("Android controls the default Home app. Choose AI TV 2.0 in Home app settings, or press the Home button and select AI TV 2.0 → Always if prompted. Your TV manufacturer may restrict replacement launchers. This option never disables your original launcher.")
             .setPositiveButton("Open Home app settings",(d,w)->{
+                if(Build.VERSION.SDK_INT>=29) {
+                    RoleManager roles=getSystemService(RoleManager.class);
+                    if(roles!=null && roles.isRoleAvailable(RoleManager.ROLE_HOME)){
+                        if(roles.isRoleHeld(RoleManager.ROLE_HOME)){
+                            subtitle.setText("AI TV is already the default Home launcher.");return;
+                        }
+                        try{startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_HOME),HOME_ROLE_REQUEST);return;}
+                        catch(Exception ignored){}
+                    }
+                }
                 try{startActivity(new Intent("android.settings.HOME_SETTINGS"));}
                 catch(Exception e){systemSettings();subtitle.setText("Select Apps → Default apps → Home app, if supported.");}
             }).setNeutralButton("Home chooser",(d,w)->{
@@ -325,6 +338,10 @@ public final class ModernHomeActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        if(request==HOME_ROLE_REQUEST){
+            if(subtitle!=null)subtitle.setText(result==RESULT_OK?"Home launcher selected. Press Home to verify.":"Home selection was cancelled or unavailable.");
+            return;
+        }
         if(request!=WALLPAPER_PICKER||result!=RESULT_OK||data==null||data.getData()==null)return;
         Uri uri=data.getData();
         try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
