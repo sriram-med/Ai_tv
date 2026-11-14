@@ -246,6 +246,12 @@ public final class ModernHomeActivity extends Activity {
             TextView service=text(pick.service==null?"Available pick":pick.service,12,false);
             service.setTextColor(0xFFACCCCA);tile.addView(service);
             tile.setTag(pick.title);focus(tile);
+            tile.setOnLongClickListener(v->{
+                if(MediaCompanions.installedNuvio(this)!=null && MediaCompanions.openNuvioTitle(this,pick.id,pick.kind)){
+                    return true;
+                }
+                showMediaCompanions();return true;
+            });
             tile.setOnClickListener(v->{
                 Intent launchIntent=pick.pkg==null?null:getPackageManager().getLeanbackLaunchIntentForPackage(pick.pkg);
                 if(launchIntent==null&&pick.pkg!=null)launchIntent=getPackageManager().getLaunchIntentForPackage(pick.pkg);
