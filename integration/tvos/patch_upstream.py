@@ -226,6 +226,33 @@ helper = r'''
      */
     void showCuratedPicks(String q, String kind) { aiPick(q,kind); }
 
+    /** Resolve real regional offers on demand for metadata-only catalog cards. */
+    private View recommendationCard(Search.Title title) {
+        View card=titleCard(title);
+        card.setOnClickListener(clicked->{
+            if(!title.offers.isEmpty()) {showSheet(title,clicked);return;}
+            final int requestGeneration=gen;
+            android.widget.Toast.makeText(a,"Checking streaming availability...",android.widget.Toast.LENGTH_SHORT).show();
+            net.execute(()->{
+                Search.Title resolved=title;
+                try {
+                    for(Search.Title candidate:Search.titles(a,title.title,apps)) {
+                        boolean sameId=!title.imdb.isEmpty()&&title.imdb.equals(candidate.imdb);
+                        boolean sameTitle=title.title.equalsIgnoreCase(candidate.title)&&title.year.equals(candidate.year);
+                        if(sameId||sameTitle) {resolved=candidate;break;}
+                    }
+                }catch(Exception unavailable){}
+                Search.Title ready=resolved;
+                a.handler.post(()->{
+                    if(closed||gen!=requestGeneration||sheet!=null)return;
+                    showSheet(ready,clicked);
+                    if(ready.offers.isEmpty())android.widget.Toast.makeText(a,"No verified streaming service found for this title in your region.",android.widget.Toast.LENGTH_LONG).show();
+                });
+            });
+        });
+        return card;
+    }
+
     /** Rank only verified catalog objects; IDs map back to the original poster cards. */
     private List<Search.Title> rankTitles(String prompt, List<Search.Title> titles) {
         List<ContentRecommender.Item> items = new ArrayList<>();
@@ -268,8 +295,8 @@ helper = r'''
                 addNote(ready.size()+" recommendations • "+result.message+" • Ranked on this TV");
                 List<View> movies=new ArrayList<>(),shows=new ArrayList<>();
                 for(Search.Title title:ready) {
-                    if("tv".equals(title.type))shows.add(titleCard(title));
-                    else movies.add(titleCard(title));
+                    if("tv".equals(title.type))shows.add(recommendationCard(title));
+                    else movies.add(recommendationCard(title));
                 }
                 if(!movies.isEmpty())addRow("RECOMMENDED MOVIES",movies,a.dp(176));
                 if(!shows.isEmpty())addRow("RECOMMENDED SERIES",shows,a.dp(176));
