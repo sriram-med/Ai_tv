@@ -62,7 +62,23 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$KEYSTORE_B64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
-          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ai-tv-stable.jks"
+          python3 - <<'PY'
+          import os,base64,re
+          secret=os.environ["KEYSTORE_B64"].strip().strip('"').strip("'")
+          secret=secret.replace(r"\\n","").replace(r"\\r","")
+          if secret.lower().startswith("data:") and "base64," in secret.lower():
+              secret=secret.split(",",1)[1]
+          secret=re.sub(r"\\s+","",secret)
+          try:
+              decoded=base64.b64decode(secret+"="*((-len(secret))%4),altchars=b"-_",validate=True)
+          except Exception:
+              raise SystemExit("Release keystore secret is not valid Base64. Restore AI_TV_RELEASE_KEYSTORE_B64 in repository Actions secrets.")
+          if len(decoded)<128:
+              raise SystemExit("Decoded signing keystore is unexpectedly short; do not publish.")
+          with open(os.path.join(os.environ["RUNNER_TEMP"],"ai-tv-stable.jks"),"wb") as f:
+              f.write(decoded)
+          print("Keystore decoded successfully; validating with signing tool.")
+          PY
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign \
             --ks "$RUNNER_TEMP/ai-tv-stable.jks" \
             --ks-key-alias "$KEY_ALIAS" \
