@@ -562,13 +562,12 @@ public final class ModernHomeActivity extends Activity {
         LinearLayout.LayoutParams navp=new LinearLayout.LayoutParams(-1,-2);
         navp.topMargin=dp(18);body.addView(nav,navp);
         navButton(nav,"HOME","Your collection",()->{allApps=false;sortMode=0;addApps();});
-        navButton(nav,"AI DISCOVER","Personalized recommendations",()->launch(new Intent(this,AuroraDiscoveryActivity.class)));
+        navButton(nav,"DISCOVER","Browse recommendations",()->launch(new Intent(this,AuroraDiscoveryActivity.class)));
         navButton(nav,"MEDIA","Memo and Nuvio TV companions",()->launch(new Intent(this,MediaHubActivity.class)));
-        navButton(nav,"ALL APPS","Browse every installed app",()->{allApps=true;gamesOnly=false;filterText="";addApps();});
+        navButton(nav,"APPS","All installed applications",()->{allApps=true;gamesOnly=false;filterText="";addApps();});
         navButton(nav,"SEARCH","Find apps on your TV",this::searchApps);
         navButton(nav,"UPDATES","Download signed releases",this::checkUpdates);
-        navButton(nav,"DEFAULT HOME","Set as default launcher",this::chooseDefault);
-        navButton(nav,"MORE","Weather, settings and controls",this::showMore);
+        navButton(nav,"MORE","Default launcher, weather, settings and controls",this::showMore);
 
         LinearLayout feature=new LinearLayout(this);
         feature.setGravity(Gravity.CENTER_VERTICAL);
