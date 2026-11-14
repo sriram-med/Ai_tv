@@ -373,7 +373,7 @@ public final class ModernHomeActivity extends Activity {
                 case 9:chooseDefault();break;
                 case 10:systemSettings();break;
                 case 11:showMotion();break;
-                case 12:launch(new Intent(this,AiDiscoveryActivity.class));break;
+                case 12:launch(new Intent(this,AuroraDiscoveryActivity.class));break;
                 case 13:addApps();break;
                 case 14:pickWallpaper();break;
                 case 15:resetWallpaper();break;
@@ -428,7 +428,7 @@ public final class ModernHomeActivity extends Activity {
         LinearLayout.LayoutParams navp=new LinearLayout.LayoutParams(-1,-2);
         navp.topMargin=dp(18);body.addView(nav,navp);
         navButton(nav,"HOME","Your collection",()->{allApps=false;sortMode=0;addApps();});
-        navButton(nav,"AI DISCOVER","Personalized recommendations",()->launch(new Intent(this,AiDiscoveryActivity.class)));
+        navButton(nav,"AI DISCOVER","Personalized recommendations",()->launch(new Intent(this,AuroraDiscoveryActivity.class)));
         navButton(nav,"ALL APPS","Browse every installed app",()->{allApps=true;gamesOnly=false;filterText="";addApps();});
         navButton(nav,"SEARCH","Find apps on your TV",this::searchApps);
         navButton(nav,"UPDATES","Download signed releases",this::checkUpdates);
@@ -454,7 +454,7 @@ public final class ModernHomeActivity extends Activity {
         subtitle.setTextColor(0xFFCFDDDB);
         heroCopy.addView(subtitle);
         TextView explore=action("EXPLORE WITH AI  ›","Find your next movie or series",
-                ()->launch(new Intent(this,AiDiscoveryActivity.class)));
+                ()->launch(new Intent(this,AuroraDiscoveryActivity.class)));
         explore.setTextSize(15);
         explore.setBackground(shape(0xFFB6E9D6,0xFFB6E9D6,14));
         explore.setTextColor(0xFFF0FFF8);
@@ -527,7 +527,7 @@ public final class ModernHomeActivity extends Activity {
     }
     @Override public boolean onKeyDown(int key,KeyEvent event) {
         if(key==KeyEvent.KEYCODE_SEARCH) {
-            launch(new Intent(this,AiDiscoveryActivity.class));return true;
+            launch(new Intent(this,AuroraDiscoveryActivity.class));return true;
         }
         return super.onKeyDown(key,event);
     }
