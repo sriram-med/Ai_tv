@@ -1,6 +1,9 @@
 name: AI TV upstream tvOS migration preview
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/tvos-upstream-migration
 permissions:
   contents: write
 jobs:
