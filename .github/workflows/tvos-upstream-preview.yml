@@ -16,10 +16,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - name: Install upstream Android SDK dependencies
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
+          test -n "$ANDROID_HOME"
+          echo "Android SDK: $ANDROID_HOME"
           sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
       - name: Fetch pinned Apache-2.0 TV launcher
         shell: bash
