@@ -1,5 +1,6 @@
 """Open the visible AI control on a running TV emulator and verify its chooser."""
 import subprocess
+import atexit
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -7,6 +8,13 @@ from pathlib import Path
 
 def adb(*args):
     return subprocess.check_output(['adb', *args], text=True)
+
+def save_runtime_evidence():
+    Path('tv-preview-shots').mkdir(exist_ok=True)
+    Path('tv-preview-shots/logcat.txt').write_text(adb('logcat','-d','-v','brief'))
+    subprocess.run(['adb','shell','screencap','-p','/sdcard/ai-test-final.png'])
+    subprocess.run(['adb','pull','/sdcard/ai-test-final.png','tv-preview-shots/final.png'])
+atexit.register(save_runtime_evidence)
 
 def hierarchy():
     adb('shell', 'uiautomator', 'dump', '/sdcard/ai-tv-ui.xml')
