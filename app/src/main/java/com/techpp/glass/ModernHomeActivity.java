@@ -48,7 +48,7 @@ import java.util.Set;
 /** Native, DPAD-first AI TV 2.0 home. Original Talkies home remains available as a recovery activity. */
 public final class ModernHomeActivity extends Activity {
     private static final int BG=0xFF08151B, PANEL=0xE620303A, ACCENT=0xFFE5B97A, CYAN=0xFF89E5D4;
-    private LinearLayout body, appRow;
+    private LinearLayout body, appRow, picksRow;
     private GridLayout appGrid;
     private HorizontalScrollView appStrip;
     private boolean gridView=true;
@@ -207,6 +207,54 @@ public final class ModernHomeActivity extends Activity {
             TextView empty=text("No apps match this view. Clear filters to show everything.",17,false);
             if(gridView && appGrid!=null)appGrid.addView(empty);else appRow.addView(empty);
         }
+    }
+    private void updateFeatured() {
+        if(picksRow==null)return;
+        picksRow.removeAllViews();
+        List<Trending.Pick> picks;
+        try{picks=new Trending(this).cached();}catch(Exception ex){return;}
+        int count=0;
+        for(Trending.Pick pick:picks) {
+            if(pick==null||pick.title==null||pick.title.isEmpty())continue;
+            LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);
+            tile.setBackground(shape(PANEL,0x66556E77,18));
+            tile.setPadding(dp(9),dp(9),dp(9),dp(9));
+            ImageView picture=new ImageView(this);
+            picture.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            if(pick.image!=null&&pick.image.exists()){
+                android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();
+                opts.inSampleSize=3;
+                try{picture.setImageBitmap(BitmapFactory.decodeFile(pick.image.getAbsolutePath(),opts));}
+                catch(Exception ignored){}
+            }
+            tile.addView(picture,new LinearLayout.LayoutParams(-1,dp(105)));
+            TextView label=text(pick.title,15,true);
+            label.setSingleLine(true);label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=dp(8);
+            tile.addView(label,lp);
+            TextView service=text(pick.service==null?"Available pick":pick.service,12,false);
+            service.setTextColor(0xFFACCCCA);tile.addView(service);
+            tile.setTag(pick.title);focus(tile);
+            tile.setOnClickListener(v->{
+                Intent launchIntent=pick.pkg==null?null:getPackageManager().getLeanbackLaunchIntentForPackage(pick.pkg);
+                if(launchIntent==null&&pick.pkg!=null)launchIntent=getPackageManager().getLaunchIntentForPackage(pick.pkg);
+                if(launchIntent!=null){RecentApps.note(this,pick.pkg);launch(launchIntent);}
+                else subtitle.setText("Provider not installed for "+pick.title);
+            });
+            LinearLayout.LayoutParams card=new LinearLayout.LayoutParams(dp(235),dp(174));
+            card.rightMargin=dp(13);picksRow.addView(tile,card);
+            if(++count>=8)break;
+        }
+        if(count==0){
+            TextView placeholder=text("No curated titles yet  ·  Open Discover to refresh your catalog",15,false);
+            placeholder.setPadding(dp(18),dp(14),dp(18),dp(14));
+            picksRow.addView(placeholder);
+        }
+    }
+    private void refreshFeatured() {
+        new Trending(this).refreshIfStale(picks->{
+            if(!isFinishing())updateFeatured();
+        });
     }
     private void addContinueWatching() {
         List<Trending.Pick> seen=RecentStore.load(this);
@@ -509,6 +557,24 @@ public final class ModernHomeActivity extends Activity {
         updateText=text("v"+SelfUpdate.installed(this)+"  ·  Check updates",13,false);
         updateText.setTextColor(0xFFE6E6E2);info.addView(updateText);
         feature.addView(info,new LinearLayout.LayoutParams(0,-2,2));
+
+        LinearLayout featuresTitle=new LinearLayout(this);featuresTitle.setGravity(Gravity.CENTER_VERTICAL);
+        TextView featuredLabel=text("Selected for tonight",21,true);
+        featuresTitle.addView(featuredLabel,new LinearLayout.LayoutParams(0,-2,1));
+        TextView reload=action("REFRESH PICKS","Refresh featured streaming titles",()->{
+            refreshFeatured();updateFeatured();});
+        reload.setTextSize(13);featuresTitle.addView(reload);
+        LinearLayout.LayoutParams ftitle=new LinearLayout.LayoutParams(-1,-2);
+        ftitle.topMargin=dp(22);body.addView(featuresTitle,ftitle);
+        HorizontalScrollView pickScroll=new HorizontalScrollView(this);
+        pickScroll.setHorizontalScrollBarEnabled(false);pickScroll.setClipToPadding(false);
+        picksRow=new LinearLayout(this);picksRow.setOrientation(LinearLayout.HORIZONTAL);
+        picksRow.setClipChildren(false);
+        pickScroll.addView(picksRow);
+        LinearLayout.LayoutParams picksP=new LinearLayout.LayoutParams(-1,dp(184));
+        picksP.topMargin=dp(10);body.addView(pickScroll,picksP);
+        updateFeatured();
+        refreshFeatured();
 
         LinearLayout titleRow=new LinearLayout(this);titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView appsLabel=text("Your collection",23,true);
