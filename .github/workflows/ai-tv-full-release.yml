@@ -107,7 +107,7 @@ jobs:
         with:
           api-level: 30
           target: android-tv
-          arch: x86_64
+          arch: x86
           profile: tv_1080p
           cores: 2
           ram-size: 2048M
