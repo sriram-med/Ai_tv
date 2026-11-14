@@ -33,6 +33,10 @@
 
     <!-- Android 11+ package visibility: without this the app grid comes up empty. -->
     <queries>
+        <!-- Installed media companions (Nuvio Play Store and sideload variants; Memo/Lumora). -->
+        <package android:name="com.lumora" />
+        <package android:name="com.nuvio.tv" />
+        <package android:name="com.nuvio.app" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
