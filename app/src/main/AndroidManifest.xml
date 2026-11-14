@@ -104,6 +104,7 @@
 
         <activity android:name=".AiDiscoveryActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".AuroraDiscoveryActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".MediaHubActivity" android:exported="false" android:screenOrientation="landscape" />
 
         <!-- Control Center: Turn off now / sleep timer (the "lock" action); typing a match into JioHotstar's search. -->
         <service
