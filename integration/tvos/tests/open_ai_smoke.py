@@ -23,8 +23,27 @@ time.sleep(2)
 root = hierarchy()
 texts = ' '.join(n.get('text', '') for n in root.iter('node'))
 Path('tv-preview-shots/ai-chooser.xml').write_text(ET.tostring(root, encoding='unicode'))
-if 'AI DISCOVERY' not in texts or 'CONNECT GPT' not in texts:
+if 'AI DISCOVERY' not in texts or 'GPT RANK' not in texts or 'SEARCH' not in texts:
     raise SystemExit('FAIL: AI button did not open AI discovery chooser: ' + texts)
+# The editable field is focused on entry; test actual hardware/IME text delivery.
+adb('shell', 'input', 'text', 'alien')
+time.sleep(1)
+root = hierarchy()
+fields = [n for n in root.iter('node') if n.get('class') == 'android.widget.EditText']
+if not any(n.get('text') == 'alien' for n in fields):
+    raise SystemExit('FAIL: typed search did not reach persistent AI search field')
+labels = {n.get('text') for n in root.iter('node')}
+if not {'SPACE', 'DELETE', 'CLEAR', 'BROWSE'}.issubset(labels):
+    raise SystemExit('FAIL: remote keyboard controls missing')
+# Select SEARCH by its current bounds, then ensure the input survives results rendering.
+button = next(n for n in root.iter('node') if n.get('text') == 'SEARCH')
+x1,y1,x2,y2 = map(int,re.findall(r'\d+',button.get('bounds','')))
+adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2))
+time.sleep(1)
+root = hierarchy()
+if not any(n.get('class') == 'android.widget.EditText' and n.get('text') == 'alien' for n in root.iter('node')):
+    raise SystemExit('FAIL: search results removed search input')
+Path('tv-preview-shots/ai-search.xml').write_text(ET.tostring(root,encoding='unicode'))
 adb('shell', 'input', 'keyevent', '22')
 adb('shell', 'input', 'keyevent', '21')
-print('PASS: signed in-place upgrade, AI button opens chooser, remote navigation accepted')
+print('PASS: signed upgrade, AI chooser, typed search, persistent search input and remote keyboard controls')

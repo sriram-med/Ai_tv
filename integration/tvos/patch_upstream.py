@@ -90,10 +90,113 @@ data = data.replace("import android.content.Intent;",
 anchor = "    void fillTitles(List<Search.Title> ts) {"
 assert data.count(anchor) == 1
 helper = r'''
+    private boolean aiMode, syncingAiInput;
+    private android.widget.EditText aiSearchInput;
+    private View aiFirstKey;
+    private LinearLayout aiSearchChrome;
+
+    /** Persistent search tools live outside result rails so recommendations cannot hide them. */
+    private void setupAiSearch() {
+        aiMode = true;
+        if (aiSearchChrome != null) return;
+        keyScroll.setVisibility(View.GONE);
+        queryView.setText("AI DISCOVERY  /  YOUR NEXT GREAT WATCH");
+        queryView.setTextColor(0xFFB8FFF0);
+        queryView.setAlpha(1f);
+        LinearLayout col = (LinearLayout) keyScroll.getParent();
+        aiSearchChrome = new LinearLayout(a);
+        aiSearchChrome.setOrientation(LinearLayout.VERTICAL);
+        aiSearchChrome.setPadding(a.dockOuter, a.dp(8), a.dockOuter, a.dp(8));
+        GradientDrawable surface = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xF0233948, 0xE7101828});
+        surface.setCornerRadius(a.dp(18));
+        surface.setStroke(a.dp(1), 0x805A9EAC);
+        aiSearchChrome.setBackground(surface);
+        col.addView(aiSearchChrome, 1, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout bar = new LinearLayout(a);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        aiSearchInput = new android.widget.EditText(a);
+        aiSearchInput.setId(View.generateViewId());
+        aiSearchInput.setSingleLine(true);
+        aiSearchInput.setTextColor(Color.WHITE);
+        aiSearchInput.setHintTextColor(0xFFAAC1D1);
+        aiSearchInput.setHint("Search a title, actor, genre or mood...");
+        aiSearchInput.setTextSize(16);
+        aiSearchInput.setPadding(a.dp(12), a.dp(8), a.dp(12), a.dp(8));
+        aiSearchInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        aiSearchInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        GradientDrawable field = new GradientDrawable();
+        field.setColor(0xFF0D1927); field.setCornerRadius(a.dp(10));
+        field.setStroke(a.dp(1), 0xFF5D8EAA); aiSearchInput.setBackground(field);
+        bar.addView(aiSearchInput, new LinearLayout.LayoutParams(0, a.dp(44), 1f));
+        bar.addView(chip("SEARCH", () -> submitAiSearch(false)));
+        bar.addView(chip("GPT RANK", () -> submitAiSearch(true)));
+        aiSearchChrome.addView(bar);
+        aiSearchInput.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s,int start,int count,int after) {}
+            public void onTextChanged(CharSequence s,int start,int before,int count) {
+                if (!syncingAiInput) setQuery(s.toString());
+            }
+            public void afterTextChanged(android.text.Editable text) {}
+        });
+        aiSearchInput.setOnEditorActionListener((v, action, event) -> {
+            if (action == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER &&
+                 event.getAction() == KeyEvent.ACTION_UP)) {
+                submitAiSearch(false); return true;
+            }
+            return false;
+        });
+        LinearLayout keyboard = new LinearLayout(a);
+        keyboard.setOrientation(LinearLayout.VERTICAL);
+        keyboard.setGravity(Gravity.CENTER_HORIZONTAL);
+        for (String letters : new String[]{"qwertyuiop", "asdfghjkl", "zxcvbnm"}) {
+            LinearLayout row = new LinearLayout(a);
+            row.setGravity(Gravity.CENTER);
+            for (int i=0; i<letters.length(); i++) {
+                final String letter = letters.substring(i,i+1);
+                View k = key(letter, a.dp(40), () -> type(letter));
+                if (aiFirstKey == null) aiFirstKey = k;
+                row.addView(k);
+            }
+            keyboard.addView(row);
+        }
+        LinearLayout controls = new LinearLayout(a);
+        controls.setGravity(Gravity.CENTER);
+        controls.addView(key("SPACE", a.dp(96), () -> type(" ")));
+        controls.addView(key("DELETE", a.dp(85), this::backspace));
+        controls.addView(key("123 / !?", a.dp(92), () -> {
+            aiSearchInput.requestFocus();
+            android.view.inputmethod.InputMethodManager ime =
+                (android.view.inputmethod.InputMethodManager) a.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+            if (ime != null) ime.showSoftInput(aiSearchInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        }));
+        controls.addView(key("CLEAR", a.dp(75), this::clear));
+        controls.addView(key("BROWSE", a.dp(85), this::openAiChooser));
+        keyboard.addView(controls);
+        aiSearchChrome.addView(keyboard);
+    }
+
+    private void submitAiSearch(boolean rank) {
+        String prompt = aiSearchInput.getText().toString().trim();
+        if (prompt.isEmpty()) { openAiChooser(); return; }
+        android.view.inputmethod.InputMethodManager ime =
+            (android.view.inputmethod.InputMethodManager) a.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        if (ime != null) ime.hideSoftInputFromWindow(aiSearchInput.getWindowToken(), 0);
+        if (rank) {
+            if (new AiTvPairingClient(a).hasSession()) aiPick(prompt, "");
+            else pairForAi(prompt, "");
+        } else setQuery(prompt);
+    }
+
     private static final String AI_GATEWAY = "https://ai-tv-2-gpt-gateway.onrender.com";
 
     /** AI recommendations use the SAME original tvOS poster components, logos and animations. */
     void openAiChooser() {
+        setupAiSearch();
+        a.handler.removeCallbacks(fetch);
+        gen++;
+        Search.cancel();
         String[] topics = {"MOVIES  /  Tonight", "SERIES  /  Binge-worthy",
             "THRILLERS", "SCIENCE FICTION", "COMEDY", "FAMILY", "DRAMA", "ACTION",
             "CONNECT GPT"};
@@ -111,9 +214,9 @@ helper = r'''
                 else showCuratedPicks(q, preference);
             }));
         }
-        addRow("AI DISCOVERY  /  Browse by mood", chips, a.dp(52));
+        addRow("EXPLORE  /  MOVIES, SERIES & MOODS", chips, a.dp(52));
         addNote("Select movies or series for native poster recommendations. Connect GPT for personalized ranking.");
-        if(!chips.isEmpty())chips.get(0).requestFocus();
+        aiSearchInput.requestFocus();
     }
 
     /**
@@ -121,6 +224,7 @@ helper = r'''
      * Stremio recommendation sources and poster card builder.
      */
     void showCuratedPicks(String q, String kind) {
+        final int requestGeneration = ++gen;
         list.removeAllViews();
         addNote("Loading locally available movie and series recommendations...");
         net.execute(() -> {
@@ -156,7 +260,7 @@ helper = r'''
                 }
             }
             a.handler.post(() -> {
-                if (closed) return;
+                if (closed || gen != requestGeneration) return;
                 list.removeAllViews();
                 List<View> movieTiles = new ArrayList<>(), seriesTiles = new ArrayList<>();
                 if (!"tv".equals(kind))
@@ -199,6 +303,7 @@ helper = r'''
     }
 
     void aiPick(String prompt, String type) {
+        final int requestGeneration = ++gen;
         if (prompt == null || prompt.trim().length() < 2) prompt = "movies";
         final String queryText = prompt.trim();
         addNote("Finding verified streaming titles for " + queryText + "...");
@@ -208,7 +313,7 @@ helper = r'''
             catch (Exception e) {all = new ArrayList<>();}
             List<Search.Title> retrieved = all;
             a.handler.post(() -> {
-                if (closed) return;
+                if (closed || gen != requestGeneration) return;
                 if (retrieved.isEmpty()) {
                     addNote("No catalog available for " + queryText + ". Search locally or try another genre.");
                     setQuery(queryText);
@@ -233,7 +338,7 @@ helper = r'''
             }
             if (catalog.length() == 0) {
                 a.handler.post(() -> {
-                    if (!closed) {
+                    if (!closed && gen == requestGeneration) {
                         list.removeAllViews();
                         addNote("No matching " + ("tv".equals(type) ? "series" : "movies") + " found. Try a different term.");
                     }
@@ -245,7 +350,7 @@ helper = r'''
                     " matching: " + queryText, catalog, new AiRecommendationClient.Callback() {
                 @Override public void onSuccess(JSONArray response) {
                     a.handler.post(() -> {
-                        if (closed) return;
+                        if (closed || gen != requestGeneration) return;
                         List<View> movies = new ArrayList<>(), shows = new ArrayList<>();
                         for (int i = 0; i < response.length(); i++) {
                             JSONObject rec = response.optJSONObject(i);
@@ -263,7 +368,7 @@ helper = r'''
                 }
                 @Override public void onError(String reason) {
                     a.handler.post(() -> {
-                        if (closed) return;
+                        if (closed || gen != requestGeneration) return;
                         list.removeAllViews();
                         List<View> movies = new ArrayList<>(), shows = new ArrayList<>();
                         for (Search.Title t : ids.values()) {
@@ -281,6 +386,22 @@ helper = r'''
 
 '''
 data = data.replace(anchor, helper + anchor)
+
+# Empty AI searches return to the mood browser, with search tools still visible.
+data = data.replace('    void render() {',
+    '    void render() {\n        if (aiMode && q().isEmpty()) { openAiChooser(); return; }', 1)
+# Keep custom keyboard and hardware/IME input synchronized. Hardware text goes to
+# EditText itself when it owns focus; elsewhere retain upstream remote typing.
+data = data.replace('    View firstKey() {\n',
+    '    View firstKey() {\n        if (aiMode && aiFirstKey != null) return aiFirstKey;\n', 1)
+data = data.replace('        showQuery();\n        a.handler.removeCallbacks(fetch);',
+    '        showQuery();\n        if (aiMode && aiSearchInput != null) {\n            if (!aiSearchInput.getText().toString().equals(query.toString())) {\n                syncingAiInput = true;\n                aiSearchInput.setText(query.toString());\n                aiSearchInput.setSelection(aiSearchInput.length());\n                syncingAiInput = false;\n            }\n            queryView.setText("AI DISCOVERY  /  YOUR NEXT GREAT WATCH");\n            queryView.setAlpha(1f);\n        }\n        a.handler.removeCallbacks(fetch);', 1)
+data = data.replace('        View f = a.getCurrentFocus();\n        if (mic != null',
+    '        View f = a.getCurrentFocus();\n        if (aiMode && f == aiSearchInput) return false;\n        if (mic != null', 1)
+# Bypass upstream character/delete interception while the editable field is focused.
+data = data.replace('        if (k == KeyEvent.KEYCODE_DEL) {',
+    '        if (aiMode && a.getCurrentFocus() == aiSearchInput && k != KeyEvent.KEYCODE_SEARCH && k != KeyEvent.KEYCODE_VOICE_ASSIST) return false;\n        if (k == KeyEvent.KEYCODE_DEL) {', 1)
+
 # Upstream already includes provider artwork. Place the actual JustWatch IMDb rating
 # in the poster overlay; unknown values remain absent rather than invented.
 anchor = "        art.addView(logos, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,\n                Gravity.BOTTOM | Gravity.START));"
