@@ -8,6 +8,9 @@ import android.net.Uri;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.EditText;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
 import android.text.InputType;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
@@ -191,21 +194,47 @@ public final class ModernHomeActivity extends Activity {
                 catch(Exception e){subtitle.setText("Use Android TV settings to choose the Home app.");}
             }).setNegativeButton("Cancel",null).show();
     }
+    private void configureWeather() {
+        EditText city=new EditText(this);
+        city.setSingleLine(true);
+        city.setTextColor(Color.WHITE);
+        city.setHintTextColor(0xFFB2CCCF);
+        city.setHint("City or latitude,longitude");
+        LinearLayout wrap=new LinearLayout(this);
+        wrap.setPadding(dp(22),dp(8),dp(22),0);
+        wrap.addView(city,new LinearLayout.LayoutParams(-1,-2));
+        new AlertDialog.Builder(this).setTitle("Weather location")
+                .setMessage("Enter your city (for example Hyderabad) or coordinates. Saved locally on your TV.")
+                .setView(wrap).setPositiveButton("Save",(d,w)->{
+                    String val=city.getText().toString().trim();
+                    if(val.isEmpty() || val.length()>120){subtitle.setText("Enter a valid location");return;}
+                    File dir=getExternalFilesDir(null);
+                    if(dir==null){subtitle.setText("TV storage unavailable");return;}
+                    try(FileOutputStream out=new FileOutputStream(new File(dir,"location.txt"))){
+                        out.write(val.getBytes(StandardCharsets.UTF_8));
+                        weather=new Weather(this);
+                        subtitle.setText("Weather location saved: "+val);
+                        refreshWeather();
+                    }catch(Exception ex){subtitle.setText("Could not save weather location");}
+                }).setNegativeButton("Cancel",null).show();
+    }
     private void showMore() {
         final String[] labels={"Display favorites first","Show all apps (alphabetical)","Reverse alphabetical sort",
-            "Recheck weather","Check for updates","Make default Home launcher",
-            "Android system settings","Motion level","AI Discovery"};
+            "Refresh weather","Set weather location","Check for updates","Make default Home launcher",
+            "Android system settings","Motion level","AI Discovery","Refresh app collection"};
         new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
             switch(i){
                 case 0: allApps=false;sortMode=0;addApps();break;
                 case 1: allApps=true;sortMode=0;addApps();break;
                 case 2: allApps=true;sortMode=1;addApps();break;
                 case 3:refreshWeather();break;
-                case 4:checkUpdates();break;
-                case 5:chooseDefault();break;
-                case 6:systemSettings();break;
-                case 7:showMotion();break;
-                case 8:launch(new Intent(this,AiDiscoveryActivity.class));break;
+                case 4:configureWeather();break;
+                case 5:checkUpdates();break;
+                case 6:chooseDefault();break;
+                case 7:systemSettings();break;
+                case 8:showMotion();break;
+                case 9:launch(new Intent(this,AiDiscoveryActivity.class));break;
+                case 10:addApps();break;
                 default:break;
             }
         }).show();
@@ -254,7 +283,7 @@ public final class ModernHomeActivity extends Activity {
         navButton(nav,"HOME","Your collection",()->{allApps=false;sortMode=0;addApps();});
         navButton(nav,"AI DISCOVER","Personalized recommendations",()->launch(new Intent(this,AiDiscoveryActivity.class)));
         navButton(nav,"ALL APPS","Browse every installed app",()->{allApps=true;addApps();});
-        navButton(nav,"WEATHER","Refresh local forecast",this::refreshWeather);
+        navButton(nav,"WEATHER","Set your city and view live weather",this::configureWeather);
         navButton(nav,"UPDATES","Download signed releases",this::checkUpdates);
         navButton(nav,"DEFAULT HOME","Set as default launcher",this::chooseDefault);
         navButton(nav,"MORE","Settings and controls",this::showMore);
@@ -281,7 +310,7 @@ public final class ModernHomeActivity extends Activity {
                 ()->launch(new Intent(this,AiDiscoveryActivity.class)));
         explore.setTextSize(15);
         explore.setBackground(shape(0xFFB6E9D6,0xFFB6E9D6,14));
-        explore.setTextColor(0xFF092122);
+        explore.setTextColor(0xFFF0FFF8);
         LinearLayout.LayoutParams exploreP=new LinearLayout.LayoutParams(dp(245),dp(53));
         exploreP.topMargin=dp(16);
         heroCopy.addView(explore,exploreP);
@@ -300,7 +329,7 @@ public final class ModernHomeActivity extends Activity {
         info.addView(updateLabel,ul);
         updateText=text("v"+SelfUpdate.installed(this)+"  ·  Check updates",13,false);
         updateText.setTextColor(0xFFE6E6E2);info.addView(updateText);
-        feature.addView(info,new LinearLayout.LayoutParams(0,-1,2));
+        feature.addView(info,new LinearLayout.LayoutParams(0,-2,2));
 
         LinearLayout titleRow=new LinearLayout(this);titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView appsLabel=text("Your collection",23,true);
