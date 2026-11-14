@@ -46,8 +46,8 @@ Status is intentionally conservative: **implemented** means wired in code, not h
 19. [x] Uninstall via system confirmation
 20. [x] Open system settings
 21. [x] Reduced motion / intensity settings
-22. [ ] User-uploaded wallpaper / wallpaper library
-23. [ ] Personalized Continue Watching row with provider permission checks
+22. [x] Local wallpaper picker with safe return-to-Aurora fallback
+23. [x] Continue Watching row using existing permitted media-session records (empty without access/data)
 
 Additional future work: TV input selector, live memory/network status, remote key customization, onboarding, tests, accessibility, app reorder, crash-safe launcher recovery, animation profiling.
 
