@@ -8,7 +8,7 @@ permissions:
   contents: write
 concurrency:
   group: ai-tv-v1.8.0-stable
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   full-release:
     runs-on: ubuntu-24.04
