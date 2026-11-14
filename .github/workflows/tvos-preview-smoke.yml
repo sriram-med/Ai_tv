@@ -1,4 +1,4 @@
-name: AI TV 1.8.1 upgrade and AI smoke test
+name: AI TV 1.8.2 upgrade and AI smoke test
 on:
   workflow_dispatch:
   push:
@@ -32,9 +32,9 @@ jobs:
             set -eu
             curl -fL --retry 3 -o /tmp/ai-tv-upstream-preview.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.7.4-oss-preview/ai-tv-upstream-preview.apk"
             adb install -r /tmp/ai-tv-upstream-preview.apk
-            curl -fL --retry 12 --retry-delay 5 --retry-all-errors -o /tmp/ai-tv-hotfix.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.8.1/ai-tv.apk"
+            curl -fL --retry 12 --retry-delay 5 --retry-all-errors -o /tmp/ai-tv-hotfix.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.8.2/ai-tv.apk"
             adb install -r /tmp/ai-tv-hotfix.apk
-            adb shell dumpsys package com.techpp.glass | grep 'versionName=1.8.1'
+            adb shell dumpsys package com.techpp.glass | grep 'versionName=1.8.2'
             adb shell am start -W -n com.techpp.glass/com.techpp.glass.MainActivity
             sleep 5
             mkdir -p tv-preview-shots
@@ -58,6 +58,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ai-tv-1.8.1-emulator-evidence
+          name: ai-tv-1.8.2-emulator-evidence
           path: tv-preview-shots/
           if-no-files-found: warn
