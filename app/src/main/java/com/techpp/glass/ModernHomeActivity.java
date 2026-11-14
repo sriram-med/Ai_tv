@@ -16,6 +16,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
+import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -170,12 +171,59 @@ public final class ModernHomeActivity extends Activity {
             tile.setOnClickListener(v->{
                 Intent i=getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
                 if(i==null)i=getPackageManager().getLaunchIntentForPackage(pkg);
-                if(i!=null)launch(i);else subtitle.setText("No launchable activity for "+pkg);
+                if(i!=null){RecentApps.note(this,pkg);launch(i);}else subtitle.setText("No launchable activity for "+pkg);
             });
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(173),dp(153));lp.setMargins(dp(3),dp(7),dp(13),dp(12));
             appRow.addView(tile,lp);if(++count==1)tile.requestFocus();
         }
         if(count==0)appRow.addView(text("No apps found. Check launcher permissions.",17,false));
+    }
+    private void addContinueWatching() {
+        List<Trending.Pick> seen=RecentStore.load(this);
+        if(seen.isEmpty())return;
+        TextView title=text("Continue watching",21,true);
+        LinearLayout.LayoutParams label=new LinearLayout.LayoutParams(-1,-2);
+        label.topMargin=dp(12);body.addView(title,label);
+        HorizontalScrollView strip=new HorizontalScrollView(this);
+        strip.setHorizontalScrollBarEnabled(false);
+        LinearLayout line=new LinearLayout(this);line.setOrientation(LinearLayout.HORIZONTAL);
+        strip.addView(line);
+        for(Trending.Pick pick:seen) {
+            LinearLayout tile=new LinearLayout(this);
+            tile.setOrientation(LinearLayout.VERTICAL);tile.setPadding(dp(11),dp(9),dp(11),dp(10));
+            tile.setBackground(shape(PANEL,0x66556E77,16));
+            ImageView art=new ImageView(this);
+            art.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            if(pick.image!=null && pick.image.isFile()){
+                BitmapFactory.Options o=new BitmapFactory.Options();o.inSampleSize=2;
+                art.setImageBitmap(BitmapFactory.decodeFile(pick.image.getAbsolutePath(),o));
+            }else{
+                try{art.setImageDrawable(getPackageManager().getApplicationIcon(pick.pkg));}
+                catch(Exception ignored){}
+            }
+            tile.addView(art,new LinearLayout.LayoutParams(-1,dp(75)));
+            TextView name=text(pick.title,14,true);
+            name.setMaxLines(1);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            tile.addView(name);
+            TextView source=text(pick.service==null?"":pick.service,12,false);
+            source.setTextColor(0xFF9DB9BE);tile.addView(source);
+            tile.setTag(pick.title);
+            focus(tile);
+            tile.setOnClickListener(v->{
+                if(pick.intentUri!=null&&!pick.intentUri.isEmpty()){
+                    try{launch(Intent.parseUri(pick.intentUri,Intent.URI_INTENT_SCHEME));return;}
+                    catch(Exception ignored){}
+                }
+                Intent i=getPackageManager().getLeanbackLaunchIntentForPackage(pick.pkg);
+                if(i!=null)launch(i);
+            });
+            LinearLayout.LayoutParams card=new LinearLayout.LayoutParams(dp(207),dp(143));
+            card.rightMargin=dp(13);
+            line.addView(tile,card);
+        }
+        LinearLayout.LayoutParams row=new LinearLayout.LayoutParams(-1,dp(155));
+        row.topMargin=dp(8);body.addView(strip,row);
     }
     private void showAppActions(String pkg,String name) {
         String[] items={"Launch","Toggle favorite","App information","Uninstall"};
@@ -382,6 +430,7 @@ public final class ModernHomeActivity extends Activity {
         LinearLayout.LayoutParams appsP=new LinearLayout.LayoutParams(-1,dp(182));
         appsP.topMargin=dp(9);body.addView(strip,appsP);
         addApps();
+        addContinueWatching();
 
         TextView footer=text("AURORA   •   AI TV 2.0   •   Designed for the big screen",12,false);
         footer.setTextColor(0xFF819EA5);
