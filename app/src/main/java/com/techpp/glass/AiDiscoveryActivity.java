@@ -22,7 +22,6 @@ public final class AiDiscoveryActivity extends Activity {
     private static final String GATEWAY = "https://ai-tv-2-gpt-gateway.onrender.com";
     private LinearLayout results;
     private View contentRoot;
-    private TextView reaction;
     private EditText query;
     private EditText pairingCode;
     private TextView status;
@@ -60,25 +59,6 @@ public final class AiDiscoveryActivity extends Activity {
         TextView heading=label("AI TV 2.0  /  DISCOVER",30);heading.setTypeface(null,Typeface.BOLD);
         heading.setTextColor(0xFF00E5FF);screen.addView(heading);
         screen.addView(label("Cinematic discovery  •  GPT-ranked picks  •  Privacy-first",16));
-        TextView telugu=label("అదిరిపోయే సినిమా వెతుకుదామా?  ✨",17);
-        telugu.setTextColor(0xFFB9C7FF);
-        if (MotionPrefs.telugu(this)) screen.addView(telugu);
-        reaction=label("✨  సినిమా సందడి!  ✨",20);
-        reaction.setGravity(Gravity.CENTER);
-        reaction.setTextColor(0xFFFFD57E);
-        if (MotionPrefs.telugu(this)) {
-            LinearLayout reactionRow=new LinearLayout(this);
-            reactionRow.setOrientation(LinearLayout.HORIZONTAL);
-            reactionRow.setGravity(Gravity.CENTER_VERTICAL);
-            if (MotionPrefs.level(this) > 0) reactionRow.addView(new TeluguReactionView(this));
-            reactionRow.addView(reaction);
-            screen.addView(reactionRow);
-        }
-        react("✨  సినిమా సందడి!  ✨");
-        telugu.setPivotX(0f);
-        telugu.setAlpha(.65f);
-        telugu.animate().alpha(1f).translationX(8f).setDuration(650)
-            .setInterpolator(new DecelerateInterpolator()).start();
         query=new EditText(this);query.setSingleLine(true);query.setTextColor(Color.WHITE);
         query.setHintTextColor(0xFFB3C7E6);query.setHint("What would you like to watch?");
         query.setBackground(panel(0xFF17223C,0xFF005CFF));query.setPadding(24,18,24,18);
@@ -133,11 +113,6 @@ public final class AiDiscoveryActivity extends Activity {
             MotionPrefs.setLevel(this,next);
             status.setText("Motion: "+(next==0?"Off":next==1?"Subtle":"Full")+". Reopen this screen to preview.");
         });
-        addAction(results,"TELUGU REACTIONS  •  ON / OFF",()->{
-            boolean enabled=!MotionPrefs.telugu(this);
-            MotionPrefs.setTelugu(this,enabled);
-            status.setText("Telugu reactions: "+(enabled?"On":"Off")+". Reopen to apply.");
-        });
         addAction(results,"ABOUT THIS BUILD",()->status.setText("Metal UI beta: verified catalog and GPT discovery."));
         contentRoot=screen;
         setContentView(screen);
@@ -163,18 +138,6 @@ public final class AiDiscoveryActivity extends Activity {
         overridePendingTransition(R.anim.mac_home_restore, R.anim.mac_window_close);
     }
 
-    private void react(String message) {
-        if (reaction == null || !MotionPrefs.telugu(this)) return;
-        reaction.setText(message);
-        if (MotionPrefs.level(this) == 0) return;
-        reaction.animate().cancel();
-        reaction.setAlpha(0f);
-        reaction.setScaleX(.9f); reaction.setScaleY(.9f);
-        reaction.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setInterpolator(new DecelerateInterpolator(2f))
-                .setDuration(MotionPrefs.duration(this, 400)).start();
-    }
-
     private void discover() {
         AiTvPairingClient pairing=new AiTvPairingClient(this);
         if (!pairing.hasSession()) {status.setText("Pair your TV first. Never enter an OpenAI API key here.");return;}
@@ -194,13 +157,13 @@ public final class AiDiscoveryActivity extends Activity {
             if (catalog.length()>=40) break;
         }
         if (catalog.length()==0) {status.setText("No verified streaming titles cached yet. Refresh Trending on Home first.");return;}
-        status.setText("సినిమా మ్యాజిక్ మొదలైంది! ✨  Finding recommendations...");
-        react("🔎  వెతుకుతున్నాం...  ✨");
+        status.setText("Finding recommendations...");
+
         client.recommend(GATEWAY,pairing.currentToken(),query.getText().toString(),catalog,
             new AiRecommendationClient.Callback() {
                 @Override public void onSuccess(JSONArray picks) {runOnUiThread(()->{
                     results.removeAllViews();status.setText("Recommendations");
-                    react("🎉  దొరికేశాయి!  🎬");
+
                     for(int i=0;i<picks.length();i++) {
                         JSONObject item=picks.optJSONObject(i);
                         if(item!=null) {
@@ -211,7 +174,7 @@ public final class AiDiscoveryActivity extends Activity {
                     }
                 });}
                 @Override public void onError(String reason) {runOnUiThread(()->{
-                    status.setText(reason); react("అయ్యో! మళ్లీ ప్రయత్నిద్దాం 😅");
+                    status.setText(reason);
                 });}
             });
     }
