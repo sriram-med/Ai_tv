@@ -267,6 +267,9 @@ public final class ModernHomeActivity extends Activity {
             if(!isFinishing())updateFeatured();
         });
     }
+    private void showMediaCompanions() {
+        launch(new Intent(this,MediaHubActivity.class));
+    }
     private void addContinueWatching() {
         List<Trending.Pick> seen=RecentStore.load(this);
         if(seen.isEmpty())return;
@@ -462,7 +465,7 @@ public final class ModernHomeActivity extends Activity {
             "Check for updates","Make default Home launcher","Android system settings","Motion level",
             "AI Discovery","Refresh app collection","Choose custom wallpaper","Restore Aurora wallpaper",
             "Switch grid / horizontal row","Show / hide app labels","Grid: 4 columns","Grid: 5 columns","Grid: 6 columns",
-            "Favorites only","Show hidden apps","Hide hidden apps","Sort by recent usage","Reset app preferences","TV system shortcuts"};
+            "Favorites only","Show hidden apps","Hide hidden apps","Sort by recent usage","Reset app preferences","TV system shortcuts","Memo / Nuvio media hub","Open Memo","Open Nuvio"};
         new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
             switch(i){
                 case 0: allApps=false;gamesOnly=false;favoritesOnly=false;sortMode=0;addApps();break;
@@ -499,6 +502,9 @@ public final class ModernHomeActivity extends Activity {
                         addApps();
                     }).setNegativeButton("Cancel",null).show();break;
                 case 26:showSystemShortcuts();break;
+                case 27:showMediaCompanions();break;
+                case 28:if(!MediaCompanions.launchMemo(this))showMediaCompanions();break;
+                case 29:if(!MediaCompanions.launchNuvio(this))showMediaCompanions();break;
                 default:break;
             }
         }).show();
@@ -551,6 +557,7 @@ public final class ModernHomeActivity extends Activity {
         navp.topMargin=dp(18);body.addView(nav,navp);
         navButton(nav,"HOME","Your collection",()->{allApps=false;sortMode=0;addApps();});
         navButton(nav,"AI DISCOVER","Personalized recommendations",()->launch(new Intent(this,AuroraDiscoveryActivity.class)));
+        navButton(nav,"MEDIA","Memo and Nuvio TV companions",()->launch(new Intent(this,MediaHubActivity.class)));
         navButton(nav,"ALL APPS","Browse every installed app",()->{allApps=true;gamesOnly=false;filterText="";addApps();});
         navButton(nav,"SEARCH","Find apps on your TV",this::searchApps);
         navButton(nav,"UPDATES","Download signed releases",this::checkUpdates);
