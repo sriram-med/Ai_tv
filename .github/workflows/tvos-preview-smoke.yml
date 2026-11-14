@@ -43,6 +43,10 @@ jobs:
             sleep 2
             adb shell screencap -p /sdcard/ai-tv-after-dpad.png
             adb pull /sdcard/ai-tv-after-dpad.png tv-preview-shots/after-dpad.png
+            adb shell input tap 1675 98
+            sleep 2
+            adb shell screencap -p /sdcard/ai-tv-ai-discovery.png
+            adb pull /sdcard/ai-tv-ai-discovery.png tv-preview-shots/ai-discovery-entry.png
             adb logcat -d -v brief > tv-preview-shots/logcat.txt
             ! grep -q 'Process: com.techpp.glass' tv-preview-shots/logcat.txt
             adb shell dumpsys activity activities | grep 'com.techpp.glass' || true
