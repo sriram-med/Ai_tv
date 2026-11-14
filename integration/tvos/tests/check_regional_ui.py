@@ -10,7 +10,19 @@ def tree():
 def click(node):
     x1,y1,x2,y2=map(int,re.findall(r'\d+',node.get('bounds','')))
     adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2))
-def text_click(label):click(next(n for n in tree().iter('node') if n.get('text','').casefold()==label.casefold()))
+def text_click(label, scroll=False):
+    for attempt in range(5 if scroll else 1):
+        root=tree()
+        nodes=[n for n in root.iter('node') if n.get('text','').casefold()==label.casefold()]
+        if nodes:click(nodes[0]);return
+        if scroll:
+            lists=[n for n in root.iter('node') if n.get('class')=='android.widget.ListView']
+            if lists:
+                x1,y1,x2,y2=map(int,re.findall(r'\d+',lists[0].get('bounds','')))
+                adb('shell','input','swipe',str((x1+x2)//2),str(y1+40),str((x1+x2)//2),str(y2-40),'350')
+            else:adb('shell','input','keyevent','19')
+            time.sleep(.5)
+    raise AssertionError('Cannot find selector option: '+label)
 def save_evidence():
     Path('tv-preview-shots/regional-final.xml').write_text(ET.tostring(tree(),encoding='unicode'))
     Path('tv-preview-shots/regional-logcat.txt').write_text(adb('logcat','-d','-v','brief'))
@@ -18,7 +30,7 @@ def save_evidence():
     subprocess.run(['adb','pull','/sdcard/regional-final.png','tv-preview-shots/regional-final.png'])
 atexit.register(save_evidence)
 
-def choose(button,language):text_click(button);time.sleep(.5);text_click(language)
+def choose(button,language):text_click(button);time.sleep(.5);text_click(language,scroll=True)
 def await_region(name):
     for attempt in range(18):
         time.sleep(1);root=tree();texts=' '.join(n.get('text','') for n in root.iter('node'))
