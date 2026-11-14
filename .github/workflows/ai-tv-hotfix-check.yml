@@ -1,0 +1,36 @@
+name: AI TV upstream hotfix checks
+on:
+  pull_request:
+    branches: [release/ai-tv-1.8.0]
+  push:
+    branches: [fix/ai-button-ota]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare pinned upstream and apply integration
+        run: |
+          git clone --no-checkout https://github.com/techgenius1/tvOS-Launcher.git upstream
+          git -C upstream fetch --depth 1 origin 463fa6c2a9b7322c4407f1d00db935ef09d20f4f
+          git -C upstream checkout --detach FETCH_HEAD
+          python3 integration/tvos/patch_upstream.py
+          cp app/src/main/java/com/techpp/glass/AiTvPairingClient.java upstream/src/com/techpp/glass/
+          cp app/src/main/java/com/techpp/glass/AiRecommendationClient.java upstream/src/com/techpp/glass/
+      - name: Run generated Java regression checks
+        run: python3 integration/tvos/tests/check_navigation.py
+      - name: Compile full TV application
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+          cd upstream
+          VERSION_NAME=1.8.1 VERSION_CODE=47 bash build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-tv-hotfix-development-only
+          path: upstream/build/tvos-home.apk

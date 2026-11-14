@@ -361,6 +361,57 @@ settings_text = settings_text.replace(cyt_start,
 settings_text = settings_text.replace(cyt_end, '        }\n\n' + cyt_end)
 settings.write_text(settings_text)
 
+# The upstream top-bar key handler explicitly enumerates its controls. Include
+# our AI control in that state machine; adding a focusable view alone is insufficient.
+scene_code = scene.read_text()
+scene_code = scene_code.replace('LinearLayout aiSceneButton = new LinearLayout(host);',
+                                'aiSceneButton = new LinearLayout(host);')
+scene_code = scene_code.replace('    boolean dispatchKey(KeyEvent ev) {',
+    '    private LinearLayout aiSceneButton;\n\n    boolean dispatchKey(KeyEvent ev) {')
+scene_code = scene_code.replace('f == whoBar || f == weatherBtn || f == moonBtn',
+                                'f == whoBar || f == weatherBtn || f == aiSceneButton || f == moonBtn')
+scene_code = scene_code.replace('else moonBtn.requestFocus();', 'else aiSceneButton.requestFocus();')
+scene_code = scene_code.replace('} else if (f == weatherBtn) {\n                        moonBtn.requestFocus();',
+    '} else if (f == weatherBtn) {\n                        aiSceneButton.requestFocus();\n                    } else if (f == aiSceneButton) {\n                        moonBtn.requestFocus();')
+scene_code = scene_code.replace('if (f == moonBtn) {\n                        if (wxVisible)',
+    'if (f == moonBtn) {\n                        aiSceneButton.requestFocus();\n                    } else if (f == aiSceneButton) {\n                        if (wxVisible)')
+scene.write_text(scene_code)
+
+# Retain the downloaded package across the Android permission round-trip.
+content = updater.read_text()
+content = content.replace('    private static final String PREF_NAME',
+    '    private static final String PENDING_INSTALL = "pending_install_permission";\n    private static final String PREF_NAME', 1)
+content = content.replace('if (name.endsWith(".apk") && !dl.isEmpty())',
+    'if ("ai-tv.apk".equals(name) && dl.startsWith("https://github.com/sriram-med/Ai_tv/releases/download/"))')
+content = content.replace('String apkUrl = GITHUB_FALLBACK_APK;', 'String apkUrl = "";')
+content = content.replace('                prefs(appCtx).edit()\n',
+    '                if (apkUrl.isEmpty()) throw new Exception("Release has no AI TV APK");\n                prefs(appCtx).edit()\n', 1)
+content = content.replace('                try {\n                    Intent permIntent',
+    '                prefs(activity).edit().putBoolean(PENDING_INSTALL, true).apply();\n                try {\n                    Intent permIntent', 1)
+content = content.replace('                } catch (Throwable ignored) {\n                }\n                return;\n            }\n\n            PackageInstaller pi',
+    '                } catch (Throwable unavailable) {\n                    prefs(activity).edit().remove(PENDING_INSTALL).apply();\n                    Toast.makeText(activity, "Open Android Settings and allow AI TV to install apps, then retry Updates.", Toast.LENGTH_LONG).show();\n                }\n                return;\n            }\n            prefs(activity).edit().remove(PENDING_INSTALL).apply();\n\n            PackageInstaller pi', 1)
+method = r'''    /** Resume only an install explicitly requested before opening Android permission settings. */
+    public static void resumePendingInstall(Activity activity) {
+        if (!prefs(activity).getBoolean(PENDING_INSTALL, false)) return;
+        if (Build.VERSION.SDK_INT >= 26 && !activity.getPackageManager().canRequestPackageInstalls()) return;
+        prefs(activity).edit().remove(PENDING_INSTALL).apply();
+        File apk = new File(activity.getCacheDir(), "tvos-update.apk");
+        if (apk.exists()) installWithPackageInstaller(activity, apk);
+    }
+
+'''
+content = content.replace('    private static void copyFile(', method + '    private static void copyFile(', 1)
+content = content.replace('"Could not check for updates.",', '"Could not check for updates: " + errorMsg,')
+content = content.replace('            } else if (status == PackageInstaller.STATUS_SUCCESS) {',
+    '            } else if (status != PackageInstaller.STATUS_SUCCESS) {\n                Toast.makeText(context, "Update not installed: " + intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE), Toast.LENGTH_LONG).show();\n            } else if (status == PackageInstaller.STATUS_SUCCESS) {')
+updater.write_text(content)
+for activity in [main, settings]:
+    code = activity.read_text()
+    assert code.count('        super.onResume();') == 1
+    code = code.replace('        super.onResume();',
+        '        super.onResume();\n        AppUpdater.resumePendingInstall(this);', 1)
+    activity.write_text(code)
+
 # Apache-2.0 requires a clear change notice on modified source files.
 for edited in [main, search, updater, settings, scene]:
     source_code = edited.read_text(encoding="utf-8")
