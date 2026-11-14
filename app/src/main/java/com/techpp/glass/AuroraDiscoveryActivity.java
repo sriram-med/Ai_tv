@@ -82,7 +82,7 @@ public final class AuroraDiscoveryActivity extends Activity {
         TextView discoverNav=button("◇   DISCOVER","Movie and series exploration",()->query.requestFocus());
         LinearLayout.LayoutParams dn=new LinearLayout.LayoutParams(-1,density(52));
         dn.bottomMargin=density(12);side.addView(discoverNav,dn);
-        TextView mediaNav=button("▣   MEDIA","Memo and Nuvio TV companions",->
+        TextView mediaNav=button("▣   MEDIA","Memo and Nuvio TV companions",()->
             startActivity(new Intent(this,MediaHubActivity.class)));
         LinearLayout.LayoutParams mn=new LinearLayout.LayoutParams(-1,density(52));
         mn.bottomMargin=density(12);side.addView(mediaNav,mn);
