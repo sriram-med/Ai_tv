@@ -44,7 +44,7 @@ def wait_recommendations(category=''):
         current=hierarchy()
         text=' '.join(n.get('text','') for n in current.iter('node'))
         match=re.search(r'(\d+) recommendations',text)
-        posters=[n for n in current.iter('node') if re.search(r' · (19|20)\d{2}',n.get('text',''))]
+        posters=[n for n in current.iter('node') if re.search(r'\s+·\s+(19|20)\d{2}',n.get('text',''))]
         if match and int(match.group(1))>0 and posters and (not category or category+' catalog' in text):
             return current
         if 'Catalog unavailable.' in text:raise SystemExit('FAIL: no recommendation data: '+text)
@@ -90,7 +90,7 @@ for attempt in range(25):
     labels=' '.join(n.get('text','') for n in root.iter('node'))
     if any(s in labels for s in ('CONNECT GPT','GPT RANK','Secure AI pairing')):
         raise SystemExit('FAIL: removed GPT setup UI reappeared')
-    if re.search(r'[1-9]\d* recommendations',labels) and any(re.search(r' · (19|20)\d{2}',n.get('text','')) for n in root.iter('node')): break
+    if re.search(r'[1-9]\d* recommendations',labels) and any(re.search(r'\s+·\s+(19|20)\d{2}',n.get('text','')) for n in root.iter('node')): break
 else:
     raise SystemExit('FAIL: native recommendations did not finish')
 Path('tv-preview-shots/native-recommendations.xml').write_text(ET.tostring(root,encoding='unicode'))
