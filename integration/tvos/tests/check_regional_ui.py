@@ -1,5 +1,6 @@
 """Verify language selection, persistence, nonempty regional cards and Nuvio entry."""
 import subprocess,time,re,json,gzip,xml.etree.ElementTree as ET
+import atexit
 from pathlib import Path
 
 def adb(*args):return subprocess.check_output(['adb',*args],text=True)
@@ -9,13 +10,23 @@ def tree():
 def click(node):
     x1,y1,x2,y2=map(int,re.findall(r'\d+',node.get('bounds','')))
     adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2))
-def text_click(label):click(next(n for n in tree().iter('node') if n.get('text')==label))
+def text_click(label):click(next(n for n in tree().iter('node') if n.get('text','').casefold()==label.casefold()))
+def save_evidence():
+    Path('tv-preview-shots/regional-final.xml').write_text(ET.tostring(tree(),encoding='unicode'))
+    Path('tv-preview-shots/regional-logcat.txt').write_text(adb('logcat','-d','-v','brief'))
+    adb('shell','screencap','-p','/sdcard/regional-final.png')
+    subprocess.run(['adb','pull','/sdcard/regional-final.png','tv-preview-shots/regional-final.png'])
+atexit.register(save_evidence)
+
 def choose(button,language):text_click(button);time.sleep(.5);text_click(language)
 def await_region(name):
     for attempt in range(18):
         time.sleep(1);root=tree();texts=' '.join(n.get('text','') for n in root.iter('node'))
         if name+' catalogue' in texts and re.search(r'[1-9]\d* recommendations',texts):
-            assert any(re.search(r'\s+·\s+(19|20)\d{2}',n.get('text','')) for n in root.iter('node')),'No regional poster labels'
+            bundle=json.loads(gzip.decompress(Path('integration/tvos/assets/regional_catalogs.json.gz').read_bytes()))
+            code=next(code for code,label in bundle['languages'].items() if label==name)
+            titles={m['name'] for kind in ['movie','series'] for m in bundle['catalogs'][code+'_'+kind]['metas']}
+            assert any(re.split(r'\s+·\s+',n.get('text',''))[0].strip() in titles for n in root.iter('node')),'No actual regional poster titles'
             return root
     raise AssertionError('Regional catalogue failed: '+texts)
 
