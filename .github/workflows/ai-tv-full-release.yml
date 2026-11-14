@@ -1,4 +1,4 @@
-name: AI TV 1.8 stable full APK
+name: AI TV 1.8.1 hotfix full APK
 on:
   workflow_dispatch:
   push:
@@ -7,7 +7,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: ai-tv-v1.8.0-stable
+  group: ai-tv-v1.8.1-stable
   cancel-in-progress: true
 jobs:
   full-release:
@@ -45,10 +45,12 @@ jobs:
           grep -q 'sriram-med/Ai_tv/releases/latest' upstream/src/com/techpp/glass/AppUpdater.java
           grep -q 'if (false)' upstream/src/com/techpp/glass/SettingsActivity.java
           test -s upstream/NOTICE
+      - name: Test generated AI navigation and release comparisons
+        run: python3 integration/tvos/tests/check_navigation.py
       - name: Build original full Android TV application
         env:
-          VERSION_NAME: 1.8.0
-          VERSION_CODE: 46
+          VERSION_NAME: 1.8.1
+          VERSION_CODE: 47
         run: |
           cd upstream
           bash build.sh
@@ -86,7 +88,7 @@ jobs:
             --key-pass env:KEY_PASSWORD \
             --out ai-tv.apk upstream/build/aligned.apk
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs ai-tv.apk
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging ai-tv.apk | grep "^package: name='com.techpp.glass' versionCode='46' versionName='1.8.0'"
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging ai-tv.apk | grep "^package: name='com.techpp.glass' versionCode='47' versionName='1.8.1'"
           sha256sum ai-tv.apk > ai-tv.apk.sha256
           cp upstream/LICENSE UPSTREAM-LICENSE.txt
           cp upstream/NOTICE UPSTREAM-NOTICE.txt
@@ -102,7 +104,7 @@ jobs:
       - name: Upload stable signed APK for installation
         uses: actions/upload-artifact@v4
         with:
-          name: ai-tv-v1.8.0-signed
+          name: ai-tv-v1.8.1-signed
           path: |
             ai-tv.apk
             ai-tv.apk.sha256
@@ -113,15 +115,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="ai-tv-v1.8.0"
+          TAG="ai-tv-v1.8.1"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Existing stable release remains immutable"
             exit 0
           fi
           gh release create "$TAG" ai-tv.apk ai-tv.apk.sha256 UPSTREAM-LICENSE.txt UPSTREAM-NOTICE.txt \
             --target "$GITHUB_SHA" \
-            --title "AI TV 1.8.0 — Full tvOS Edition" \
-            --notes "Full signed stable AI TV package, upgraded from the v1.7.4 OSS preview. Based on techgenius1/tvOS-Launcher commit 463fa6c under Apache-2.0 with required original notices. Original glass dock, Night Scenes, Classic layout, native animations, wallpapers, weather, streaming/provider posters, IMDb ratings when provided by source, Stremio/Nuvio integration, live app launch, TV settings and updates. AI TV additions: visible AI button on both home layouts, film/series poster recommendations without an API key, optional server-side GPT ranking via device pairing, and the AI TV GitHub update feed. Destructive OEM launcher disable/debloat menu hidden for safety. Production signing key matches the installed v1.7.4 preview and package version is verified. This stable APK has not yet been emulator-tested; the v1.7.4 preview passed a TV emulator smoke test. Do not disable the TV original launcher. Rotten Tomatoes and live GPT recommendations require external configuration; not claimed fully verified."
+            --title "AI TV 1.8.1 — AI Button and OTA Hotfix" \
+            --latest \
+            --notes "Fixes remote DPAD navigation to the AI button in Night Scenes, including when weather is hidden. OTA installation resumes after granting Android Install unknown apps permission. The updater selects the exact AI TV APK and displays update-check and installer errors. Full application built from pinned tvOS-Launcher 463fa6c under Apache-2.0 with original notices preserved. Package com.techpp.glass, version 1.8.1, code 47. Production signing key verified against the previous signed preview. Generated Java regression checks cover AI navigation and release comparisons. GPT ranking requires a configured paired gateway. Physical-TV behavior has not been tested by this release workflow. If your existing OTA screen cannot install, download ai-tv.apk and install it over your existing app without uninstalling."
       - name: Remove keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/ai-tv-stable.jks"
