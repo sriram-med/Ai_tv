@@ -156,7 +156,7 @@ public final class ModernHomeActivity extends Activity {
             tile.setBackground(shape(PANEL,0x66556E77,16));
             ImageView icon=new ImageView(this);
             try {
-                Drawable bannerArt=info.loadBanner(getPackageManager());
+                Drawable bannerArt=info.activityInfo.loadBanner(getPackageManager());
                 icon.setImageDrawable(bannerArt != null ? bannerArt : info.loadIcon(getPackageManager()));
                 icon.setScaleType(bannerArt != null ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
             } catch(Exception ignored){}
