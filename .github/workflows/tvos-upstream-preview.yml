@@ -42,8 +42,8 @@ jobs:
           grep -q 'aiTvButton' upstream/src/com/techpp/glass/MainActivity.java
       - name: Build real cloned launcher (upstream shell and animations)
         env:
-          VERSION_NAME: 1.7.1
-          VERSION_CODE: 42
+          VERSION_NAME: 1.7.2
+          VERSION_CODE: 43
         run: |
           cd upstream
           bash build.sh
@@ -83,15 +83,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="ai-tv-v1.7.1-oss-preview"
+          TAG="ai-tv-v1.7.2-oss-preview"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Existing immutable preview left intact."
             exit 0
           fi
           gh release create "$TAG" ai-tv-upstream-preview.apk ai-tv-upstream-preview.apk.sha256 UPSTREAM-LICENSE.txt UPSTREAM-NOTICE.txt \
             --target "$GITHUB_SHA" --prerelease \
-            --title "AI TV 1.7.1 — upstream tvOS migration preview" \
-            --notes "Preview only: cloned from techgenius1/tvOS-Launcher commit 463fa6c (Apache-2.0). The real upstream glass dock, TV UI, motion, native search posters, provider logos, IMDb badges, and AI discovery pairing are preserved/extended. Not TV-tested. Risky system debloater controls removed in this preview. Do not disable OEM Home launcher."
+            --title "AI TV 1.7.2 — upstream tvOS migration preview" \
+            --notes "Preview only: cloned from techgenius1/tvOS-Launcher commit 463fa6c (Apache-2.0). The real upstream glass dock, TV UI, motion, provider logos, IMDb badges, always-available cached movie/series recommendations, and optional secure GPT discovery are preserved/extended. Not TV-tested. Risky system debloater controls removed in this preview. Do not disable OEM Home launcher."
       - name: Cleanup release keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/preview-key.jks"
