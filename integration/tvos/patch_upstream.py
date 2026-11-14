@@ -105,10 +105,16 @@ helper = r'''
         aiMode = true;
         if (aiSearchChrome != null) return;
         keyScroll.setVisibility(View.GONE);
-        queryView.setText("AI DISCOVERY  /  YOUR NEXT GREAT WATCH");
+        queryView.setText("AI DISCOVERY");
         queryView.setTextColor(0xFFB8FFF0);
         queryView.setAlpha(1f);
         LinearLayout col = (LinearLayout) keyScroll.getParent();
+        // Focus-driven ScrollView scrolling must never draw recommendations into the toolbar.
+        col.setClipChildren(true);
+        results.setClipChildren(true);
+        results.setClipToPadding(true);
+        results.setPadding(0, a.dp(12), 0, a.dp(24));
+        queryView.setEllipsize(TextUtils.TruncateAt.END);
         aiSearchChrome = new LinearLayout(a);
         aiSearchChrome.setOrientation(LinearLayout.VERTICAL);
         aiSearchChrome.setPadding(a.dockOuter, a.dp(8), a.dockOuter, a.dp(8));
@@ -117,8 +123,13 @@ helper = r'''
         surface.setCornerRadius(a.dp(18));
         surface.setStroke(a.dp(1), 0x805A9EAC);
         aiSearchChrome.setBackground(surface);
-        col.addView(aiSearchChrome, 1, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams chromeParams=new LinearLayout.LayoutParams(-1,-2);
+        chromeParams.topMargin=a.dp(10);
+        chromeParams.bottomMargin=a.dp(12);
+        col.addView(aiSearchChrome,1,chromeParams);
         LinearLayout bar = new LinearLayout(a);
+        bar.setBaselineAligned(false);
+        bar.setMinimumHeight(a.dp(44));
         bar.setGravity(Gravity.CENTER_VERTICAL);
         aiSearchInput = new android.widget.EditText(a);
         aiSearchInput.setId(View.generateViewId());
@@ -317,7 +328,7 @@ data = data.replace('    void render() {',
 data = data.replace('    View firstKey() {\n',
     '    View firstKey() {\n        if (aiMode && aiFirstKey != null) return aiKeyboard.getVisibility()==View.VISIBLE?aiFirstKey:aiSearchInput;\n', 1)
 data = data.replace('        showQuery();\n        a.handler.removeCallbacks(fetch);',
-    '        showQuery();\n        if (aiMode && aiSearchInput != null) {\n            if (!aiSearchInput.getText().toString().equals(query.toString())) {\n                syncingAiInput = true;\n                aiSearchInput.setText(query.toString());\n                aiSearchInput.setSelection(aiSearchInput.length());\n                syncingAiInput = false;\n            }\n            queryView.setText("AI DISCOVERY  /  YOUR NEXT GREAT WATCH");\n            queryView.setAlpha(1f);\n        }\n        a.handler.removeCallbacks(fetch);', 1)
+    '        showQuery();\n        if (aiMode && aiSearchInput != null) {\n            if (!aiSearchInput.getText().toString().equals(query.toString())) {\n                syncingAiInput = true;\n                aiSearchInput.setText(query.toString());\n                aiSearchInput.setSelection(aiSearchInput.length());\n                syncingAiInput = false;\n            }\n            queryView.setText("AI DISCOVERY");\n            queryView.setAlpha(1f);\n        }\n        a.handler.removeCallbacks(fetch);', 1)
 data = data.replace('        View f = a.getCurrentFocus();\n        if (mic != null',
     '        View f = a.getCurrentFocus();\n        if (aiMode && f == aiSearchInput) return false;\n        if (mic != null', 1)
 # Bypass upstream character/delete interception while the editable field is focused.

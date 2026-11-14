@@ -1,4 +1,4 @@
-name: AI TV 1.8.5 upgrade and AI smoke test
+name: AI TV 1.8.6 upgrade and AI smoke test
 on:
   workflow_dispatch:
   push:
@@ -32,9 +32,9 @@ jobs:
             set -eu
             curl -fL --retry 3 -o /tmp/ai-tv-upstream-preview.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.7.4-oss-preview/ai-tv-upstream-preview.apk"
             adb install -r /tmp/ai-tv-upstream-preview.apk
-            curl -fL --retry 12 --retry-delay 5 --retry-all-errors -o /tmp/ai-tv-hotfix.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.8.5/ai-tv.apk"
+            curl -fL --retry 12 --retry-delay 5 --retry-all-errors -o /tmp/ai-tv-hotfix.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.8.6/ai-tv.apk"
             adb install -r /tmp/ai-tv-hotfix.apk
-            adb shell dumpsys package com.techpp.glass | grep 'versionName=1.8.5'
+            adb shell dumpsys package com.techpp.glass | grep 'versionName=1.8.6'
             adb shell am start -W -n com.techpp.glass/com.techpp.glass.MainActivity
             sleep 5
             mkdir -p tv-preview-shots
@@ -48,6 +48,7 @@ jobs:
             adb shell screencap -p /sdcard/ai-tv-after-dpad.png
             adb pull /sdcard/ai-tv-after-dpad.png tv-preview-shots/after-dpad.png
             python3 integration/tvos/tests/open_ai_smoke.py
+            python3 integration/tvos/tests/check_ai_layout.py
             sleep 2
             adb shell screencap -p /sdcard/ai-tv-ai-discovery.png
             adb pull /sdcard/ai-tv-ai-discovery.png tv-preview-shots/ai-discovery-entry.png
@@ -58,6 +59,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ai-tv-1.8.5-emulator-evidence
+          name: ai-tv-1.8.6-emulator-evidence
           path: tv-preview-shots/
           if-no-files-found: warn
