@@ -288,6 +288,53 @@ badge = r'''
 '''
 data = data.replace(anchor, anchor + "\n" + badge)
 search.write_text(data)
+# Make AI visible in the actual default Night Scenes home, not just Classic mode.
+scene = dest / "SceneHome.java"
+scene_code = scene.read_text()
+scene_anchor = '        // Top-right Control Panel Button'
+assert scene_code.count(scene_anchor) == 1
+scene_integration = r'''
+        // AI TV integration in UPSTREAM Night Scenes control strip.
+        LinearLayout aiSceneButton = new LinearLayout(host);
+        aiSceneButton.setGravity(Gravity.CENTER);
+        aiSceneButton.setOrientation(LinearLayout.HORIZONTAL);
+        MainActivity.LiquidGlass aiSceneGlass = new MainActivity.LiquidGlass(
+                mSize / 2f, 0x6614161C, host.glassSource, host.screenW, host.screenH, host.unit);
+        aiSceneGlass.lens = dp(5);
+        aiSceneGlass.rimStrength = 0.45f;
+        aiSceneButton.setBackground(aiSceneGlass);
+        aiSceneButton.setFocusable(true);
+        aiSceneButton.setClickable(true);
+        TextView aiSceneText = new TextView(host);
+        aiSceneText.setText("\u2726 AI");
+        Ui.textSize(aiSceneText, 12f);
+        aiSceneText.setTypeface(Ui.font(host, "semibold"));
+        aiSceneText.setTextColor(Color.WHITE);
+        aiSceneButton.addView(aiSceneText, new LinearLayout.LayoutParams(dp(48), dp(20)));
+        aiSceneText.setGravity(Gravity.CENTER);
+        GradientDrawable aiSceneOutline = new GradientDrawable();
+        aiSceneOutline.setCornerRadius(mSize / 2f);
+        aiSceneOutline.setColor(Color.TRANSPARENT);
+        aiSceneOutline.setStroke(dp(2), Color.WHITE);
+        aiSceneButton.setOnFocusChangeListener((v, focused) -> {
+            v.setForeground(focused ? aiSceneOutline : null);
+            v.animate().cancel();
+            v.animate().scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f)
+                    .setDuration(180).setInterpolator(MainActivity.LIFT).start();
+            if (focused) { hideShelf(); showDashboard(); }
+        });
+        aiSceneButton.setOnClickListener(v -> {
+            host.showSearch(null);
+            if (host.search != null) host.search.openAiChooser();
+        });
+        LinearLayout.LayoutParams aiSceneParams = new LinearLayout.LayoutParams(dp(58), mSize);
+        aiSceneParams.rightMargin = dp(10);
+        topRightRow.addView(aiSceneButton, aiSceneParams);
+
+'''
+scene_code = scene_code.replace(scene_anchor, scene_integration + scene_anchor)
+scene.write_text(scene_code)
+
 # Disable potentially destructive stock-launcher debloating in this preview.
 # The user can select Aurora as Home through Android settings, without ADB changes.
 settings = dest / "SettingsActivity.java"
@@ -301,7 +348,7 @@ settings_text = settings_text.replace(cyt_end, '        }\n\n' + cyt_end)
 settings.write_text(settings_text)
 
 # Apache-2.0 requires a clear change notice on modified source files.
-for edited in [main, search, updater, settings]:
+for edited in [main, search, updater, settings, scene]:
     source_code = edited.read_text(encoding="utf-8")
     edited.write_text("// Modified for AI TV migration preview (2026): UI bridge, safety and update routing.\n" +
                       source_code, encoding="utf-8")
