@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [release/ai-tv-1.8.0]
   push:
-    branches: [fix/ai-button-ota, feature/ai-search-studio, feature/native-recommenders]
+    branches: [fix/ai-button-ota, feature/ai-search-studio, feature/native-recommenders, fix/recommendation-catalog]
 permissions:
   contents: read
 jobs:
@@ -30,6 +30,13 @@ jobs:
         run: python3 -m pip install numpy pandas scikit-learn
       - name: Verify native ranking against cloned Recommenders
         run: python3 integration/tvos/tests/check_recommenders.py
+      - name: Test independent catalog fallback and offline cache
+        env:
+          JSON_JAR: /tmp/ai-tv-json.jar
+        run: |
+          curl -fL --retry 3 -o "$JSON_JAR" https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar
+          echo "3cf6cd6892e32e2b4c1c39e0f52f5248a2f5b37646fdfbb79a66b46b618414ed  $JSON_JAR" | sha256sum -c -
+          python3 integration/tvos/tests/check_catalog.py
       - name: Run generated Java regression checks
         run: python3 integration/tvos/tests/check_navigation.py
       - name: Compile full TV application

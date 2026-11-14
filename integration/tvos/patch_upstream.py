@@ -22,6 +22,7 @@ source.rename(dest)
 # Native adaptation of the cloned MIT-licensed Recommenders TF-IDF model.
 import shutil
 shutil.copy2("app/src/main/java/com/techpp/glass/ContentRecommender.java", dest / "ContentRecommender.java")
+shutil.copy2("integration/tvos/AiCatalog.java", dest / "AiCatalog.java")
 shutil.copy2("vendor/recommenders/LICENSE", root / "assets/RECOMMENDERS-LICENSE.txt")
 
 manifest = root / "AndroidManifest.xml"
@@ -97,7 +98,7 @@ helper = r'''
     private boolean aiMode, syncingAiInput;
     private android.widget.EditText aiSearchInput;
     private View aiFirstKey;
-    private LinearLayout aiSearchChrome;
+    private LinearLayout aiSearchChrome, aiKeyboard;
 
     /** Persistent search tools live outside result rails so recommendations cannot hide them. */
     private void setupAiSearch() {
@@ -135,6 +136,10 @@ helper = r'''
         bar.addView(aiSearchInput, new LinearLayout.LayoutParams(0, a.dp(44), 1f));
         bar.addView(chip("SEARCH", () -> submitAiSearch(false)));
         bar.addView(chip("RECOMMEND", () -> submitAiSearch(true)));
+        bar.addView(chip("KEYBOARD", () -> {
+            aiKeyboard.setVisibility(aiKeyboard.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);
+            if(aiKeyboard.getVisibility()==View.VISIBLE && aiFirstKey!=null)aiFirstKey.requestFocus();
+        }));
         aiSearchChrome.addView(bar);
         aiSearchInput.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s,int start,int count,int after) {}
@@ -151,7 +156,9 @@ helper = r'''
             }
             return false;
         });
-        LinearLayout keyboard = new LinearLayout(a);
+        aiKeyboard = new LinearLayout(a);
+        LinearLayout keyboard = aiKeyboard;
+        keyboard.setVisibility(View.GONE);
         keyboard.setOrientation(LinearLayout.VERTICAL);
         keyboard.setGravity(Gravity.CENTER_HORIZONTAL);
         for (String letters : new String[]{"qwertyuiop", "asdfghjkl", "zxcvbnm"}) {
@@ -182,6 +189,7 @@ helper = r'''
     }
 
     private void submitAiSearch(boolean rank) {
+        aiKeyboard.setVisibility(View.GONE);
         String prompt = aiSearchInput.getText().toString().trim();
         if (prompt.isEmpty()) { openAiChooser(); return; }
         android.view.inputmethod.InputMethodManager ime =
@@ -216,63 +224,7 @@ helper = r'''
      * Content-based ranking adapted from the MIT-licensed Recommenders model. Reuses ORIGINAL upstream JustWatch /
      * Stremio recommendation sources and poster card builder.
      */
-    void showCuratedPicks(String q, String kind) {
-        final int requestGeneration = ++gen;
-        list.removeAllViews();
-        addNote("Loading locally available movie and series recommendations...");
-        net.execute(() -> {
-            List<Suggestions.Item> source = Suggestions.cached(a, true);
-            if (source == null || source.isEmpty()) {
-                try { source = Suggestions.fetch(a); } catch (Exception ignored) {}
-            }
-            List<Search.Title> movies = new ArrayList<>();
-            List<Search.Title> series = new ArrayList<>();
-            if (source != null) {
-                Set<String> seen = new HashSet<>();
-                for (Suggestions.Item item : source) {
-                    if (item.title == null || item.title.isEmpty() ||
-                        (!"movie".equals(item.type) && !"tv".equals(item.type)) ||
-                        !seen.add(item.type + ":" + item.title)) continue;
-                    Search.Title title = new Search.Title();
-                    title.title = item.title;
-                    title.type = item.type;
-                    title.overview = item.overview == null ? "" : item.overview;
-                    title.year = item.year == null ? "" : item.year;
-                    title.poster = item.backdrop == null ? "" : item.backdrop;
-                    title.rating = item.rating;
-                    Suggestions.Provider provider = item.provider(a);
-                    if (provider != null) {
-                        Search.Offer offer = new Search.Offer();
-                        offer.service = provider.name;
-                        offer.pkg = provider.pkg;
-                        offer.monetization = "FLATRATE";
-                        title.offers.add(offer);
-                    }
-                    if ("tv".equals(title.type)) series.add(title);
-                    else movies.add(title);
-                }
-            }
-            List<Search.Title> rankedMovies=rankTitles(q,movies);
-            List<Search.Title> rankedSeries=rankTitles(q,series);
-            a.handler.post(() -> {
-                if (closed || gen != requestGeneration) return;
-                list.removeAllViews();
-                addAiTopics();
-                List<View> movieTiles = new ArrayList<>(), seriesTiles = new ArrayList<>();
-                if (!"tv".equals(kind))
-                    for (Search.Title movie : rankedMovies) { movieTiles.add(titleCard(movie)); if(movieTiles.size()>=18)break; }
-                if (!"movie".equals(kind))
-                    for (Search.Title show : rankedSeries) { seriesTiles.add(titleCard(show)); if(seriesTiles.size()>=18)break; }
-                addNote("Recommenders TF-IDF • Ranked on this TV from verified provider metadata");
-                if (!movieTiles.isEmpty()) addRow("RECOMMENDED MOVIES", movieTiles, a.dp(176));
-                if (!seriesTiles.isEmpty()) addRow("RECOMMENDED SERIES", seriesTiles, a.dp(176));
-                if (movieTiles.isEmpty() && seriesTiles.isEmpty()) {
-                    addNote("The recommendations catalog is empty. Search movie or series titles to browse.");
-                    addNote("Use the search field above to find a title or genre.");
-                }
-            });
-        });
-    }
+    void showCuratedPicks(String q, String kind) { aiPick(q,kind); }
 
     /** Rank only verified catalog objects; IDs map back to the original poster cards. */
     private List<Search.Title> rankTitles(String prompt, List<Search.Title> titles) {
@@ -280,7 +232,7 @@ helper = r'''
         for (int i=0;i<titles.size() && i<80;i++) {
             Search.Title title=titles.get(i);
             items.add(new ContentRecommender.Item(String.valueOf(i),
-                title.title+" "+(title.overview == null ? "" : title.overview)));
+                title.title+" "+title.genres+" "+(title.overview == null ? "" : title.overview)));
         }
         List<Search.Title> ranked=new ArrayList<>();
         for (ContentRecommender.Scored scored:ContentRecommender.rank(prompt,items))
@@ -289,34 +241,43 @@ helper = r'''
     }
 
     void aiPick(String prompt, String type) {
+        a.handler.removeCallbacks(fetch);
         final int requestGeneration = ++gen;
         final String queryText = prompt == null ? "" : prompt.trim();
         list.removeAllViews();
-        addNote("Finding catalog matches and ranking on this TV...");
+        addNote("Finding movies and series for you...");
         net.execute(() -> {
-            List<Search.Title> fetched;
-            try { fetched=Search.titles(a,queryText,apps); }
-            catch(Exception unavailable) { fetched=new ArrayList<>(); }
-            List<Search.Title> filtered=new ArrayList<>();
-            for(Search.Title title:fetched)
-                if(type.isEmpty() || type.equals(title.type)) filtered.add(title);
-            List<Search.Title> ranked=rankTitles(queryText,filtered);
+            AiCatalog.Result fetched;
+            try { fetched=AiCatalog.load(a,queryText,type,apps); }
+            catch(Exception e) { fetched=new AiCatalog.Result(new ArrayList<>(),"Catalog unavailable. Select RETRY."); }
+            AiCatalog.Result result=fetched;
+            List<Search.Title> ranked;
+            try {ranked=rankTitles(queryText,result.titles);}
+            catch(Exception e) {ranked=result.titles;}
+            List<Search.Title> ready=ranked;
             a.handler.post(() -> {
                 if(closed || gen != requestGeneration)return;
-                if(ranked.isEmpty()) { showCuratedPicks(queryText,type); return; }
                 list.removeAllViews();
                 addAiTopics();
-                addNote("Ranked on this TV with Recommenders TF-IDF • No account or API key needed");
+                List<View> actions=new ArrayList<>();
+                actions.add(chip("RETRY",()->aiPick(queryText,type)));
+                actions.add(chip("BROWSE ALL",()->aiPick("","")));
+                if(ready.isEmpty()) {
+                    addRow("CATALOG",actions,a.dp(34));addNote(result.message);return;
+                }
+                addNote(ready.size()+" recommendations • "+result.message+" • Ranked on this TV");
                 List<View> movies=new ArrayList<>(),shows=new ArrayList<>();
-                for(Search.Title title:ranked) {
+                for(Search.Title title:ready) {
                     if("tv".equals(title.type))shows.add(titleCard(title));
                     else movies.add(titleCard(title));
                 }
                 if(!movies.isEmpty())addRow("RECOMMENDED MOVIES",movies,a.dp(176));
                 if(!shows.isEmpty())addRow("RECOMMENDED SERIES",shows,a.dp(176));
+                addNote("Streaming availability varies by region and subscription.");
             });
         });
     }
+
 
 '''
 data = data.replace(anchor, helper + anchor)
@@ -327,7 +288,7 @@ data = data.replace('    void render() {',
 # Keep custom keyboard and hardware/IME input synchronized. Hardware text goes to
 # EditText itself when it owns focus; elsewhere retain upstream remote typing.
 data = data.replace('    View firstKey() {\n',
-    '    View firstKey() {\n        if (aiMode && aiFirstKey != null) return aiFirstKey;\n', 1)
+    '    View firstKey() {\n        if (aiMode && aiFirstKey != null) return aiKeyboard.getVisibility()==View.VISIBLE?aiFirstKey:aiSearchInput;\n', 1)
 data = data.replace('        showQuery();\n        a.handler.removeCallbacks(fetch);',
     '        showQuery();\n        if (aiMode && aiSearchInput != null) {\n            if (!aiSearchInput.getText().toString().equals(query.toString())) {\n                syncingAiInput = true;\n                aiSearchInput.setText(query.toString());\n                aiSearchInput.setSelection(aiSearchInput.length());\n                syncingAiInput = false;\n            }\n            queryView.setText("AI DISCOVERY  /  YOUR NEXT GREAT WATCH");\n            queryView.setAlpha(1f);\n        }\n        a.handler.removeCallbacks(fetch);', 1)
 data = data.replace('        View f = a.getCurrentFocus();\n        if (mic != null',
