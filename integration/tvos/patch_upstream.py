@@ -34,6 +34,13 @@ content = content.replace("https://api.github.com/repos/techgenius1/tvOS-Launche
                           "https://api.github.com/repos/sriram-med/Ai_tv/releases/latest")
 content = content.replace("https://github.com/techgenius1/tvOS-Launcher/releases/latest/download/tvos-home.apk",
                           "https://github.com/sriram-med/Ai_tv/releases/latest/download/ai-tv.apk")
+# Preserve the AI TV release tag scheme (ai-tv-v1.8.0) in update comparisons.
+# The unmodified upstream parser strips only leading 'v', producing a confusing label.
+anchor_version = 'String s = v.trim();'
+assert content.count(anchor_version) == 1
+content = content.replace(anchor_version, 'String s = v.trim();\\n        if (s.startsWith("ai-tv-")) s = s.substring("ai-tv-".length());')
+assert 'techgenius1/tvOS-Launcher/releases/latest' not in content
+assert 'ai-tv.apk' in content
 updater.write_text(content)
 
 main = dest / "MainActivity.java"
