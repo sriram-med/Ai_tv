@@ -38,7 +38,7 @@ content = content.replace("https://github.com/techgenius1/tvOS-Launcher/releases
 # The unmodified upstream parser strips only leading 'v', producing a confusing label.
 anchor_version = 'String s = v.trim();'
 assert content.count(anchor_version) == 1
-content = content.replace(anchor_version, 'String s = v.trim();\\n        if (s.startsWith("ai-tv-")) s = s.substring("ai-tv-".length());')
+content = content.replace(anchor_version, 'String s = v.trim();\n        if (s.startsWith("ai-tv-")) s = s.substring("ai-tv-".length());')
 assert 'techgenius1/tvOS-Launcher/releases/latest' not in content
 assert 'ai-tv.apk' in content
 updater.write_text(content)
