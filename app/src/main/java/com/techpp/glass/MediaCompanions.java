@@ -43,6 +43,23 @@ final class MediaCompanions {
     static boolean launchNuvio(Context c){
         String pkg=installedNuvio(c);return pkg!=null && launch(c,pkg);
     }
+    /** Nuvio's documented custom-scheme metadata deep link; not a stream or autoplay request. */
+    static boolean openNuvioTitle(Context context,int tmdbId,String kind){
+        String pkg=installedNuvio(context);
+        if(pkg==null||tmdbId<=0)return false;
+        String type="movie".equals(kind)?"movie":"tv".equals(kind)?"series":null;
+        if(type==null)return false;
+        Uri link=Uri.parse("nuvio://tmdb/"+type+"/"+tmdbId);
+        Intent intent=new Intent(Intent.ACTION_VIEW,link).setPackage(pkg);
+        intent.addCategory(Intent.CATEGORY_DEFAULT);
+        try{
+            if(!(context instanceof Activity))intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if(intent.resolveActivity(context.getPackageManager())==null)return false;
+            context.startActivity(intent);
+            RecentApps.note(context,pkg);
+            return true;
+        }catch(Exception ignored){return false;}
+    }
     static void openDownload(Context context,boolean memo){
         String url=memo?MEMO_DOWNLOAD:NUVIO_DOWNLOAD;
         try{
