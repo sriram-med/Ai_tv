@@ -88,16 +88,76 @@ helper = r'''
     /** AI recommendations use the SAME original tvOS poster components, logos and animations. */
     void openAiChooser() {
         String[] topics = {"AI MOVIES  /  Tonight", "AI SERIES  /  Binge-worthy",
-            "THRILLERS", "SCIENCE FICTION", "COMEDY", "FAMILY", "DRAMA", "ACTION"};
+            "THRILLERS", "SCIENCE FICTION", "COMEDY", "FAMILY", "DRAMA", "ACTION",
+            "CONNECT GPT / SECURE PAIRING"};
         String[] searches = {"popular movies", "popular series", "thriller", "science fiction",
-            "comedy", "family", "drama", "action"};
+            "comedy", "family", "drama", "action", "movies"};
         new AlertDialog.Builder(a).setTitle("AI DISCOVERY  ·  Movies & Series")
             .setItems(topics, (dialog, which) -> {
                 String q = query.length() >= 2 ? q() : searches[which];
                 String preference = which == 0 ? "movie" : which == 1 ? "tv" : "";
-                if (new AiTvPairingClient(a).hasSession()) aiPick(q, preference);
-                else pairForAi(q, preference);
+                if (which == topics.length - 1) pairForAi(q, preference);
+                else if (new AiTvPairingClient(a).hasSession()) aiPick(q, preference);
+                else showCuratedPicks(q, preference);
             }).setNegativeButton("Cancel", null).show();
+    }
+
+    /**
+     * Always usable without GPT credentials. Reuses ORIGINAL upstream JustWatch /
+     * Stremio recommendation sources and poster card builder.
+     */
+    void showCuratedPicks(String q, String kind) {
+        list.removeAllViews();
+        addNote("Loading locally available movie and series recommendations...");
+        net.execute(() -> {
+            List<Suggestions.Item> source = Suggestions.cached(a, true);
+            if (source == null || source.isEmpty()) {
+                try { source = Suggestions.fetch(a); } catch (Exception ignored) {}
+            }
+            List<Search.Title> movies = new ArrayList<>();
+            List<Search.Title> series = new ArrayList<>();
+            if (source != null) {
+                Set<String> seen = new HashSet<>();
+                for (Suggestions.Item item : source) {
+                    if (item.title == null || item.title.isEmpty() ||
+                        (!"movie".equals(item.type) && !"tv".equals(item.type)) ||
+                        !seen.add(item.type + ":" + item.title)) continue;
+                    Search.Title title = new Search.Title();
+                    title.title = item.title;
+                    title.type = item.type;
+                    title.overview = item.overview == null ? "" : item.overview;
+                    title.year = item.year == null ? "" : item.year;
+                    title.poster = item.backdrop == null ? "" : item.backdrop;
+                    title.rating = item.rating;
+                    Suggestions.Provider provider = item.provider(a);
+                    if (provider != null) {
+                        Search.Offer offer = new Search.Offer();
+                        offer.service = provider.name;
+                        offer.pkg = provider.pkg;
+                        offer.monetization = "FLATRATE";
+                        title.offers.add(offer);
+                    }
+                    if ("tv".equals(title.type)) series.add(title);
+                    else movies.add(title);
+                }
+            }
+            a.handler.post(() -> {
+                if (closed) return;
+                list.removeAllViews();
+                List<View> movieTiles = new ArrayList<>(), seriesTiles = new ArrayList<>();
+                if (!"tv".equals(kind))
+                    for (Search.Title movie : movies) { movieTiles.add(titleCard(movie)); if(movieTiles.size()>=18)break; }
+                if (!"movie".equals(kind))
+                    for (Search.Title show : series) { seriesTiles.add(titleCard(show)); if(seriesTiles.size()>=18)break; }
+                addNote("Curated from streaming providers; connect GPT separately for AI-ranked picks.");
+                if (!movieTiles.isEmpty()) addRow("RECOMMENDED MOVIES", movieTiles, a.dp(176));
+                if (!seriesTiles.isEmpty()) addRow("RECOMMENDED SERIES", seriesTiles, a.dp(176));
+                if (movieTiles.isEmpty() && seriesTiles.isEmpty()) {
+                    addNote("The recommendations catalog is empty. Search movie or series titles to browse.");
+                    setQuery(q);
+                }
+            });
+        });
     }
 
     private void pairForAi(String q, String kind) {
