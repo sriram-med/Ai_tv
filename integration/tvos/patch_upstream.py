@@ -228,4 +228,22 @@ badge = r'''
 '''
 data = data.replace(anchor, anchor + "\n" + badge)
 search.write_text(data)
+# Disable potentially destructive stock-launcher debloating in this preview.
+# The user can select Aurora as Home through Android settings, without ADB changes.
+settings = dest / "SettingsActivity.java"
+settings_text = settings.read_text()
+cyt_start = '        section(tr("CLEANYOURTV (BETA)", "CLEANYOURTV (BETA)"));'
+cyt_end = '        // Expensive PackageManager scans (launchers, debloat status) run off the UI thread'
+assert settings_text.count(cyt_start) == 1 and settings_text.count(cyt_end) == 1
+settings_text = settings_text.replace(cyt_start,
+    '        if (false) { // AI TV preview: disable destructive stock-launcher debloat controls\\n' + cyt_start)
+settings_text = settings_text.replace(cyt_end, '        }\\n\\n' + cyt_end)
+settings.write_text(settings_text)
+
+# Apache-2.0 requires a clear change notice on modified source files.
+for edited in [main, search, updater, settings]:
+    source_code = edited.read_text(encoding="utf-8")
+    edited.write_text("// Modified for AI TV migration preview (2026): UI bridge, safety and update routing.\\n" +
+                      source_code, encoding="utf-8")
+
 print("Upstream patch applied to pinned Java tvOS Launcher; original UI and licences preserved.")
