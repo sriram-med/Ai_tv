@@ -68,13 +68,33 @@ public final class AuroraDiscoveryActivity extends Activity {
         super.onCreate(saved);
         FrameLayout frame=new FrameLayout(this);
         frame.addView(new AuroraBackdrop(this),new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout shell=new LinearLayout(this);shell.setOrientation(LinearLayout.HORIZONTAL);
+        frame.addView(shell,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout side=new LinearLayout(this);side.setOrientation(LinearLayout.VERTICAL);
+        side.setPadding(density(16),density(25),density(13),density(20));
+        side.setBackgroundColor(0xDB0A1A20);
+        shell.addView(side,new LinearLayout.LayoutParams(density(172),-1));
+        TextView sideBrand=text("◈  AURORA",21,true);sideBrand.setTextColor(MINT);
+        side.addView(sideBrand,new LinearLayout.LayoutParams(-1,density(75)));
+        TextView homeNav=button("⌂   HOME","Return to your TV home",this::finish);
+        LinearLayout.LayoutParams sn=new LinearLayout.LayoutParams(-1,density(52));
+        sn.bottomMargin=density(12);side.addView(homeNav,sn);
+        TextView discoverNav=button("◇   DISCOVER","Movie and series exploration",()->query.requestFocus());
+        LinearLayout.LayoutParams dn=new LinearLayout.LayoutParams(-1,density(52));
+        dn.bottomMargin=density(12);side.addView(discoverNav,dn);
+        TextView mediaNav=button("▣   MEDIA","Memo and Nuvio TV companions",->
+            startActivity(new Intent(this,MediaHubActivity.class)));
+        LinearLayout.LayoutParams mn=new LinearLayout.LayoutParams(-1,density(52));
+        mn.bottomMargin=density(12);side.addView(mediaNav,mn);
+        TextView note=text("IMDb scores show only when verified.\nNo OpenAI key is required for local search.",12,false);
+        note.setTextColor(0xFF9DBFBA);side.addView(note);
         LinearLayout screen=new LinearLayout(this);screen.setOrientation(LinearLayout.VERTICAL);
-        screen.setPadding(density(45),density(25),density(45),density(24));
-        frame.addView(screen,new FrameLayout.LayoutParams(-1,-1));setContentView(frame);
+        screen.setPadding(density(22),density(25),density(22),density(24));
+        shell.addView(screen,new LinearLayout.LayoutParams(0,-1,1));setContentView(frame);
         LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);
         TextView heading=text("AURORA  /  DISCOVER",27,true);heading.setTextColor(MINT);
         bar.addView(heading,new LinearLayout.LayoutParams(0,density(52),1));
-        bar.addView(button("BACK TO HOME","Return to your library",this::finish));
+
         screen.addView(bar);
         TextView hero=text("Find something worth watching.",30,true);
         LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=density(14);
@@ -269,13 +289,13 @@ public final class AuroraDiscoveryActivity extends Activity {
         title.setTextColor(GOLD);
         LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(-1,density(42));
         titleP.topMargin=density(14);section.addView(title,titleP);
-        GridLayout grid=new GridLayout(this);grid.setColumnCount(5);
+        GridLayout grid=new GridLayout(this);grid.setColumnCount(4);
         grid.setClipToPadding(false);grid.setClipChildren(false);
         int shown=0;
         for(Trending.Pick p:picks){
-            AuroraPosterCard card=new AuroraPosterCard(this,p,154,248,()->showTitle(p,reasons==null?null:reasons.get(p.key())));
-            GridLayout.LayoutParams gp=new GridLayout.LayoutParams(GridLayout.spec(shown/5),GridLayout.spec(shown%5));
-            gp.width=density(154);gp.height=density(248);
+            AuroraPosterCard card=new AuroraPosterCard(this,p,140,239,()->showTitle(p,reasons==null?null:reasons.get(p.key())));
+            GridLayout.LayoutParams gp=new GridLayout.LayoutParams(GridLayout.spec(shown/4),GridLayout.spec(shown%4));
+            gp.width=density(140);gp.height=density(239);
             gp.setMargins(density(2),density(5),density(12),density(15));
             grid.addView(card,gp);
             if(shown<20)AuroraImdbRatings.lookup(this,p,score->{
