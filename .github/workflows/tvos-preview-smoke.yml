@@ -1,0 +1,55 @@
+name: AI TV cloned launcher emulator smoke test
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/tvos-upstream-migration
+permissions:
+  contents: read
+jobs:
+  android-tv-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable hardware acceleration
+        run: |
+          if test -e /dev/kvm; then sudo chmod 666 /dev/kvm; fi
+      - name: Boot Android TV and test signed preview
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          cores: 2
+          ram-size: 2048M
+          disk-size: 4096M
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            curl -fL --retry 3 -o /tmp/ai-tv-upstream-preview.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.7.1-oss-preview/ai-tv-upstream-preview.apk"
+            adb install -r /tmp/ai-tv-upstream-preview.apk
+            adb shell am start -W -n com.techpp.glass/com.techpp.glass.MainActivity
+            sleep 5
+            mkdir -p tv-preview-shots
+            adb shell screencap -p /sdcard/ai-tv-home.png
+            adb pull /sdcard/ai-tv-home.png tv-preview-shots/home.png
+            adb shell input keyevent 22
+            adb shell input keyevent 23
+            sleep 2
+            adb shell screencap -p /sdcard/ai-tv-after-dpad.png
+            adb pull /sdcard/ai-tv-after-dpad.png tv-preview-shots/after-dpad.png
+            adb logcat -d -v brief > tv-preview-shots/logcat.txt
+            if grep -A 12 -E 'FATAL EXCEPTION|Process: com.techpp.glass' tv-preview-shots/logcat.txt | grep -q com.techpp.glass; then
+              echo "Launcher crash found"; exit 1
+            fi
+            adb shell dumpsys activity activities | grep 'com.techpp.glass' || true
+      - name: Upload real emulator screenshots and crash log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tvos-preview-emulator-evidence
+          path: tv-preview-shots/
+          if-no-files-found: warn
