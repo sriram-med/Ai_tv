@@ -47,6 +47,8 @@ public final class ModernHomeActivity extends Activity {
     private LinearLayout body, appRow;
     private FrameLayout rootFrame;
     private boolean allApps=false;
+    private String filterText="";
+    private boolean gamesOnly=false;
     private int sortMode=0;
     private TextView subtitle, weatherText, clockText, updateText;
     private final Handler timer = new Handler(Looper.getMainLooper());
@@ -142,6 +144,12 @@ public final class ModernHomeActivity extends Activity {
         });
         int count=0;
         for(ResolveInfo info:apps) {
+            String visible=info.loadLabel(getPackageManager()).toString();
+            if(!filterText.isEmpty()&&!visible.toLowerCase(Locale.ROOT).contains(filterText.toLowerCase(Locale.ROOT)))continue;
+            if(gamesOnly){try{
+                if(getPackageManager().getApplicationInfo(info.activityInfo.packageName,0).category != android.content.pm.ApplicationInfo.CATEGORY_GAME)continue;
+            }catch(Exception ex){continue;}}
+
             String pkg=info.activityInfo.packageName;
             LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);
             tile.setGravity(Gravity.CENTER);tile.setPadding(dp(12),dp(12),dp(12),dp(12));
@@ -222,23 +230,42 @@ public final class ModernHomeActivity extends Activity {
                     }catch(Exception ex){subtitle.setText("Could not save weather location");}
                 }).setNegativeButton("Cancel",null).show();
     }
+    private void searchApps() {
+        EditText field=new EditText(this);field.setSingleLine(true);
+        field.setTextColor(Color.WHITE);field.setHintTextColor(0xFF8FA9AA);
+        field.setHint("Find an installed app");field.setText(filterText);
+        LinearLayout wrap=new LinearLayout(this);wrap.setPadding(dp(22),dp(5),dp(22),0);
+        wrap.addView(field,new LinearLayout.LayoutParams(-1,-2));
+        new AlertDialog.Builder(this).setTitle("Search your apps").setView(wrap)
+            .setPositiveButton("Search",(d,w)->{
+                filterText=field.getText().toString().trim();
+                gamesOnly=false;addApps();
+                subtitle.setText(filterText.isEmpty()?"All apps":"Showing matches for: "+filterText);
+            }).setNeutralButton("Clear",(d,w)->{
+                filterText="";gamesOnly=false;addApps();
+            }).setNegativeButton("Cancel",null).show();
+    }
     private void showMore() {
         final String[] labels={"Display favorites first","Show all apps (alphabetical)","Reverse alphabetical sort",
-            "Refresh weather","Set weather location","Check for updates","Make default Home launcher",
-            "Android system settings","Motion level","AI Discovery","Refresh app collection"};
+            "Search installed apps","Show games only","Clear search and filters","Refresh weather","Set weather location",
+            "Check for updates","Make default Home launcher","Android system settings","Motion level",
+            "AI Discovery","Refresh app collection"};
         new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
             switch(i){
-                case 0: allApps=false;sortMode=0;addApps();break;
-                case 1: allApps=true;sortMode=0;addApps();break;
-                case 2: allApps=true;sortMode=1;addApps();break;
-                case 3:refreshWeather();break;
-                case 4:configureWeather();break;
-                case 5:checkUpdates();break;
-                case 6:chooseDefault();break;
-                case 7:systemSettings();break;
-                case 8:showMotion();break;
-                case 9:launch(new Intent(this,AiDiscoveryActivity.class));break;
-                case 10:addApps();break;
+                case 0: allApps=false;gamesOnly=false;sortMode=0;addApps();break;
+                case 1: allApps=true;gamesOnly=false;sortMode=0;addApps();break;
+                case 2: allApps=true;gamesOnly=false;sortMode=1;addApps();break;
+                case 3:searchApps();break;
+                case 4:gamesOnly=true;filterText="";addApps();break;
+                case 5:gamesOnly=false;filterText="";addApps();break;
+                case 6:refreshWeather();break;
+                case 7:configureWeather();break;
+                case 8:checkUpdates();break;
+                case 9:chooseDefault();break;
+                case 10:systemSettings();break;
+                case 11:showMotion();break;
+                case 12:launch(new Intent(this,AiDiscoveryActivity.class));break;
+                case 13:addApps();break;
                 default:break;
             }
         }).show();
@@ -286,11 +313,11 @@ public final class ModernHomeActivity extends Activity {
         navp.topMargin=dp(18);body.addView(nav,navp);
         navButton(nav,"HOME","Your collection",()->{allApps=false;sortMode=0;addApps();});
         navButton(nav,"AI DISCOVER","Personalized recommendations",()->launch(new Intent(this,AiDiscoveryActivity.class)));
-        navButton(nav,"ALL APPS","Browse every installed app",()->{allApps=true;addApps();});
-        navButton(nav,"WEATHER","Set your city and view live weather",this::configureWeather);
+        navButton(nav,"ALL APPS","Browse every installed app",()->{allApps=true;gamesOnly=false;filterText="";addApps();});
+        navButton(nav,"SEARCH","Find apps on your TV",this::searchApps);
         navButton(nav,"UPDATES","Download signed releases",this::checkUpdates);
         navButton(nav,"DEFAULT HOME","Set as default launcher",this::chooseDefault);
-        navButton(nav,"MORE","Settings and controls",this::showMore);
+        navButton(nav,"MORE","Weather, settings and controls",this::showMore);
 
         LinearLayout feature=new LinearLayout(this);
         feature.setGravity(Gravity.CENTER_VERTICAL);
@@ -323,11 +350,13 @@ public final class ModernHomeActivity extends Activity {
         LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);
         info.setPadding(dp(18),dp(12),dp(16),dp(12));
         info.setBackground(shape(0xC810282F,0x66556E77,18));
-        TextView forecastLabel=text("YOUR FORECAST",12,true);forecastLabel.setTextColor(ACCENT);
+        TextView forecastLabel=text("YOUR FORECAST  ↗",12,true);forecastLabel.setTextColor(ACCENT);
         info.addView(forecastLabel);
         weatherText=text("Checking forecast…",19,true);
         LinearLayout.LayoutParams weatherP=new LinearLayout.LayoutParams(-1,-2);weatherP.topMargin=dp(8);
         info.addView(weatherText,weatherP);
+        info.setOnClickListener(v->configureWeather());
+        info.setFocusable(true);
         TextView updateLabel=text("SYSTEM",12,true);updateLabel.setTextColor(ACCENT);
         LinearLayout.LayoutParams ul=new LinearLayout.LayoutParams(-1,-2);ul.topMargin=dp(17);
         info.addView(updateLabel,ul);
