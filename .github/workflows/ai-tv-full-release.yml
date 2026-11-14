@@ -1,0 +1,145 @@
+name: AI TV 1.8 stable full APK
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release/ai-tv-1.8.0
+permissions:
+  contents: write
+concurrency:
+  group: ai-tv-v1.8.0-stable
+  cancel-in-progress: false
+jobs:
+  full-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK 34
+        run: |
+          set -euo pipefail
+          SDK_MANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)
+          test -x "$SDK_MANAGER"
+          "$SDK_MANAGER" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+      - name: Clone original licensed tvOS launcher (pinned)
+        run: |
+          set -euo pipefail
+          git clone --no-checkout https://github.com/techgenius1/tvOS-Launcher.git upstream
+          git -C upstream fetch --depth 1 origin 463fa6c2a9b7322c4407f1d00db935ef09d20f4f
+          git -C upstream checkout --detach FETCH_HEAD
+          test "$(git -C upstream rev-parse HEAD)" = "463fa6c2a9b7322c4407f1d00db935ef09d20f4f"
+          test -s upstream/LICENSE && test -s upstream/NOTICE
+      - name: Integrate TV-safe AI discovery and signed update channel
+        run: |
+          set -euo pipefail
+          python3 integration/tvos/patch_upstream.py
+          cp app/src/main/java/com/techpp/glass/AiTvPairingClient.java upstream/src/com/techpp/glass/
+          cp app/src/main/java/com/techpp/glass/AiRecommendationClient.java upstream/src/com/techpp/glass/
+          grep -q 'aiSceneButton' upstream/src/com/techpp/glass/SceneHome.java
+          grep -q 'openAiChooser' upstream/src/com/techpp/glass/SearchPanel.java
+          grep -q 'showCuratedPicks' upstream/src/com/techpp/glass/SearchPanel.java
+          grep -q 'sriram-med/Ai_tv/releases/latest' upstream/src/com/techpp/glass/AppUpdater.java
+          grep -q 'if (false)' upstream/src/com/techpp/glass/SettingsActivity.java
+          test -s upstream/NOTICE
+      - name: Build original full Android TV application
+        env:
+          VERSION_NAME: 1.8.0
+          VERSION_CODE: 46
+        run: |
+          cd upstream
+          bash build.sh
+          test -s build/aligned.apk
+      - name: Sign AI TV stable APK with retained production key
+        env:
+          KEYSTORE_B64: ${{ secrets.AI_TV_RELEASE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.AI_TV_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.AI_TV_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.AI_TV_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ai-tv-stable.jks"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign \
+            --ks "$RUNNER_TEMP/ai-tv-stable.jks" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:STORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out ai-tv.apk upstream/build/aligned.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs ai-tv.apk
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging ai-tv.apk | grep "^package: name='com.techpp.glass' versionCode='46' versionName='1.8.0'"
+          sha256sum ai-tv.apk > ai-tv.apk.sha256
+          cp upstream/LICENSE UPSTREAM-LICENSE.txt
+          cp upstream/NOTICE UPSTREAM-NOTICE.txt
+      - name: Verify upgrade signing against installed preview
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 -o "$RUNNER_TEMP/previous-preview.apk" \
+            https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.7.4-oss-preview/ai-tv-upstream-preview.apk
+          OLD=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$RUNNER_TEMP/previous-preview.apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
+          NEW=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs ai-tv.apk | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
+          test -n "$OLD" && test "$OLD" = "$NEW"
+          echo "Existing-preview signing key matches stable APK."
+      - name: Emulator install and TV navigation smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          cores: 2
+          ram-size: 2048M
+          disk-size: 4096M
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            mkdir -p evidence
+            adb install -r "$RUNNER_TEMP/previous-preview.apk"
+            adb install -r ai-tv.apk
+            adb shell dumpsys package com.techpp.glass | grep 'versionCode=46' | head -1
+            adb shell am start -W -n com.techpp.glass/com.techpp.glass.MainActivity
+            sleep 6
+            adb shell input keyevent 4
+            sleep 2
+            adb shell screencap -p /sdcard/ai-tv-stable-home.png
+            adb pull /sdcard/ai-tv-stable-home.png evidence/home.png
+            adb shell input tap 1675 98
+            sleep 3
+            adb shell screencap -p /sdcard/ai-tv-stable-ai.png
+            adb pull /sdcard/ai-tv-stable-ai.png evidence/ai-discovery.png
+            adb shell input keyevent 22
+            adb shell input keyevent 23
+            adb logcat -d -v brief > evidence/logcat.txt
+            ! grep -q 'Process: com.techpp.glass' evidence/logcat.txt
+      - name: Upload stable signed APK and emulator evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-tv-v1.8.0-verified
+          path: |
+            ai-tv.apk
+            ai-tv.apk.sha256
+            UPSTREAM-LICENSE.txt
+            UPSTREAM-NOTICE.txt
+            evidence/*.png
+            evidence/logcat.txt
+      - name: Publish normal production GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="ai-tv-v1.8.0"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Existing stable release remains immutable"
+            exit 0
+          fi
+          gh release create "$TAG" ai-tv.apk ai-tv.apk.sha256 UPSTREAM-LICENSE.txt UPSTREAM-NOTICE.txt \
+            --target "$GITHUB_SHA" \
+            --title "AI TV 1.8.0 — Full tvOS Edition" \
+            --notes "Full signed stable AI TV package, upgraded from the v1.7.4 OSS preview. Based on techgenius1/tvOS-Launcher commit 463fa6c under Apache-2.0 with required original notices. Original glass dock, Night Scenes, Classic layout, native animations, wallpapers, weather, streaming/provider posters, IMDb ratings when provided by source, Stremio/Nuvio integration, live app launch, TV settings and updates. AI TV additions: visible AI button on both home layouts, film/series poster recommendations without an API key, optional server-side GPT ranking via device pairing, and the AI TV GitHub update feed. Destructive OEM launcher disable/debloat menu hidden for safety. TV emulator install, preview-to-stable upgrade, DPAD and AI entry smoke checks passed. Rotten Tomatoes and live GPT recommendations require external configuration; not claimed fully verified."
+      - name: Remove keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ai-tv-stable.jks"
