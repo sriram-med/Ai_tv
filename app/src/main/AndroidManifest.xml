@@ -75,7 +75,7 @@
         <receiver android:name=".SelfUpdate$Receiver" android:exported="false" />
 
         <activity
-            android:name=".HomeActivity"
+            android:name=".ModernHomeActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
@@ -95,6 +95,8 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity android:name=".HomeActivity" android:exported="false" android:screenOrientation="landscape" />
 
         <activity android:name=".AiDiscoveryActivity" android:exported="false" android:screenOrientation="landscape" />
 
