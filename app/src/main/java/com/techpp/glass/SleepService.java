@@ -522,7 +522,7 @@ public class SleepService extends AccessibilityService {
         openedAt = now;
         try {
             startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-                    .setClassName(this, HomeActivity.class.getName())
+                    .setClassName(this, ModernHomeActivity.class.getName())
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
         } catch (Exception e) {
             Log.w(TAG, "Couldn't open Talkies: " + e);
