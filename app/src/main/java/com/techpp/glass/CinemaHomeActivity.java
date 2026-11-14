@@ -45,7 +45,7 @@ import java.util.Set;
  */
 public final class CinemaHomeActivity extends Activity {
     private static final int BG=0xFF071015, PANEL=0xE41B2C32, FOCUS=0xFFB8F4DC, GOLD=0xFFE9BD7D;
-    private LinearLayout content,nav,railMovies,railShows,railApps,railContinue,railAi;
+    private LinearLayout content,nav,railMovies,railShows,railApps,railContinue,railAiMovies,railAiShows;
     private FrameLayout root;
     private TextView clock,weather,featureTitle,featureMeta,headline;
     private ImageView featureArt;
@@ -151,8 +151,10 @@ public final class CinemaHomeActivity extends Activity {
         clock=text("",14,true);clock.setTextColor(0xFFD4DFD9);header.addView(clock);
         content.addView(header);
         hero();
-        railHeader("AI PICKS FOR YOU","GPT-ranked suggestions from your verified catalog",()->open(AuroraDiscoveryActivity.class));
-        railAi=horizontalRail();
+        railHeader("AI MOVIE PICKS","GPT-ranked films from your verified catalog",()->open(AuroraDiscoveryActivity.class));
+        railAiMovies=horizontalRail();
+        railHeader("AI SERIES PICKS","GPT-ranked shows from your verified catalog",()->open(AuroraDiscoveryActivity.class));
+        railAiShows=horizontalRail();
         railHeader("RECOMMENDED MOVIES","Films selected from the available catalog",()->open(AuroraDiscoveryActivity.class));
         railMovies=horizontalRail();
         railHeader("SERIES TO EXPLORE","Shows and new seasons",()->open(AuroraDiscoveryActivity.class));
@@ -253,16 +255,18 @@ public final class CinemaHomeActivity extends Activity {
         }
     }
     private void loadAiPicks(){
-        if(railAi==null)return;
-        railAi.removeAllViews();
+        if(railAiMovies==null||railAiShows==null)return;
+        railAiMovies.removeAllViews();railAiShows.removeAllViews();
         AiTvPairingClient pairing=new AiTvPairingClient(this);
         if(!pairing.hasSession()){
-            emptyRail(railAi,"Connect your TV in Discover to enable GPT-ranked recommendations.");
+            emptyRail(railAiMovies,"Connect your TV in Discover to enable GPT movie picks.");
+            emptyRail(railAiShows,"Connect your TV in Discover to enable GPT series picks.");
             return;
         }
         List<Trending.Pick> catalog=new Trending(this).cached();
         if(catalog.isEmpty()){
-            emptyRail(railAi,"No verified titles yet. Open Discover to refresh the catalog.");
+            emptyRail(railAiMovies,"No catalog yet. Open Discover to refresh.");
+            emptyRail(railAiShows,"No catalog yet. Open Discover to refresh.");
             return;
         }
         JSONArray input=new JSONArray();
@@ -278,26 +282,30 @@ public final class CinemaHomeActivity extends Activity {
             if(input.length()>=40)break;
         }
         if(input.length()==0)return;
-        emptyRail(railAi,"Ranking your catalog…");
+        emptyRail(railAiMovies,"Ranking movies…");
+        emptyRail(railAiShows,"Ranking series…");
         new AiRecommendationClient().recommend(
             "https://ai-tv-2-gpt-gateway.onrender.com",pairing.currentToken(),
             "Recommend a balanced mix of excellent movies and series for tonight",input,
             new AiRecommendationClient.Callback(){
                 public void onSuccess(JSONArray ranked){runOnUiThread(()->{
-                    if(isFinishing()||railAi==null)return;
-                    railAi.removeAllViews();
-                    int n=0;
+                    if(isFinishing()||railAiMovies==null||railAiShows==null)return;
+                    railAiMovies.removeAllViews();railAiShows.removeAllViews();
+                    int films=0,series=0;
                     for(int i=0;i<ranked.length();i++){
                         JSONObject suggestion=ranked.optJSONObject(i);
                         Trending.Pick p=suggestion==null?null:ids.get(suggestion.optString("id"));
-                        if(p!=null){addPoster(railAi,p);n++;}
+                        if(p!=null&&"movie".equals(p.kind)){addPoster(railAiMovies,p);films++;}
+                        else if(p!=null&&"tv".equals(p.kind)){addPoster(railAiShows,p);series++;}
                     }
-                    if(n==0)emptyRail(railAi,"No AI picks returned. Browse curated movies and series below.");
+                    if(films==0)emptyRail(railAiMovies,"No movie picks returned. Browse recommended movies below.");
+                    if(series==0)emptyRail(railAiShows,"No series picks returned. Browse recommended shows below.");
                 });}
                 public void onError(String message){runOnUiThread(()->{
-                    if(!isFinishing()&&railAi!=null){
-                        railAi.removeAllViews();
-                        emptyRail(railAi,"AI ranking unavailable. Curated movies and series remain below.");
+                    if(!isFinishing()&&railAiMovies!=null&&railAiShows!=null){
+                        railAiMovies.removeAllViews();railAiShows.removeAllViews();
+                        emptyRail(railAiMovies,"AI ranking unavailable. Curated movies remain below.");
+                        emptyRail(railAiShows,"AI ranking unavailable. Curated series remain below.");
                     }
                 });}
             });
