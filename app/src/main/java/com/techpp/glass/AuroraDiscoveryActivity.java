@@ -111,6 +111,11 @@ public final class AuroraDiscoveryActivity extends Activity {
         TextView label=text("RECOMMENDATIONS",19,true);
         row.addView(label,new LinearLayout.LayoutParams(0,density(48),1));
         row.addView(button("REFRESH CATALOG","Fetch available titles from streaming sources",this::refreshCatalog));
+        TextView companions=button("MEMO / NUVIO","Open installed media companions",()->
+                startActivity(new Intent(this,MediaHubActivity.class)));
+        LinearLayout.LayoutParams companionsP=new LinearLayout.LayoutParams(-2,-2);
+        companionsP.leftMargin=density(10);
+        row.addView(companions,companionsP);
         TextView pair=button("PAIR AI","Optional secure device pairing",this::pairDialog);
         LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-2,-2);pp.leftMargin=density(12);
         row.addView(pair,pp);
@@ -159,6 +164,10 @@ public final class AuroraDiscoveryActivity extends Activity {
             if(++shown>=12)break;
         }
         if(shown==0)list.addView(text("No streaming applications detected. Install a streaming service or refresh the catalog.",17,false));
+        TextView companionHub=button("OPEN MEDIA COMPANIONS","Memo and Nuvio TV library setup",()->
+                startActivity(new Intent(this,MediaHubActivity.class)));
+        LinearLayout.LayoutParams hubP=new LinearLayout.LayoutParams(-1,density(55));
+        hubP.topMargin=density(11);list.addView(companionHub,hubP);
     }
     private void pairDialog() {
         AiTvPairingClient session=new AiTvPairingClient(this);
