@@ -49,6 +49,11 @@ import java.util.Set;
 public final class ModernHomeActivity extends Activity {
     private static final int BG=0xFF08151B, PANEL=0xE620303A, ACCENT=0xFFE5B97A, CYAN=0xFF89E5D4;
     private LinearLayout body, appRow;
+    private GridLayout appGrid;
+    private HorizontalScrollView appStrip;
+    private boolean gridView=true;
+    private boolean hideLabels=false;
+    private int gridColumns=5;
     private FrameLayout rootFrame;
     private ImageView wallpaperImage;
     private static final int WALLPAPER_PICKER=431;
@@ -129,7 +134,10 @@ public final class ModernHomeActivity extends Activity {
         subtitle.setText(p.getBoolean(pkg, false) ? "Added to favorites" : "Removed from favorites");
     }
     private void addApps() {
-        appRow.removeAllViews();
+        if(appGrid!=null)appGrid.removeAllViews();
+        if(appRow!=null)appRow.removeAllViews();
+        if(appStrip!=null)appStrip.setVisibility(gridView?View.GONE:View.VISIBLE);
+        if(appGrid!=null)appGrid.setVisibility(gridView?View.VISIBLE:View.GONE);
         Intent tv=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         Intent mobile=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> apps=new ArrayList<>();
@@ -172,17 +180,30 @@ public final class ModernHomeActivity extends Activity {
             TextView title=text((pinned ? "★  " : "") + info.loadLabel(getPackageManager()).toString(),15,true);
             title.setGravity(Gravity.CENTER);title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
             LinearLayout.LayoutParams tl=new LinearLayout.LayoutParams(-1,dp(36));tl.topMargin=dp(8);
-            tile.addView(title,tl);tile.setTag(title.getText().toString());focus(tile);
+            if(!hideLabels)tile.addView(title,tl);
+            tile.setTag(title.getText().toString());focus(tile);
             tile.setOnLongClickListener(v->{showAppActions(pkg,title.getText().toString());return true;});
             tile.setOnClickListener(v->{
                 Intent i=getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
                 if(i==null)i=getPackageManager().getLaunchIntentForPackage(pkg);
                 if(i!=null){RecentApps.note(this,pkg);launch(i);}else subtitle.setText("No launchable activity for "+pkg);
             });
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(173),dp(153));lp.setMargins(dp(3),dp(7),dp(13),dp(12));
-            appRow.addView(tile,lp);if(++count==1)tile.requestFocus();
+            if(gridView && appGrid!=null){
+                GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
+                    GridLayout.spec(count/gridColumns),GridLayout.spec(count%gridColumns));
+                lp.width=dp(173);lp.height=dp(153);
+                lp.setMargins(dp(3),dp(6),dp(12),dp(12));
+                appGrid.addView(tile,lp);
+            }else{
+                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(173),dp(153));
+                lp.setMargins(dp(3),dp(7),dp(13),dp(12));appRow.addView(tile,lp);
+            }
+            if(++count==1)tile.requestFocus();
         }
-        if(count==0)appRow.addView(text("No apps found. Check launcher permissions.",17,false));
+        if(count==0){
+            TextView empty=text("No apps match this view. Clear filters to show everything.",17,false);
+            if(gridView && appGrid!=null)appGrid.addView(empty);else appRow.addView(empty);
+        }
     }
     private void addContinueWatching() {
         List<Trending.Pick> seen=RecentStore.load(this);
@@ -358,7 +379,8 @@ public final class ModernHomeActivity extends Activity {
         final String[] labels={"Display favorites first","Show all apps (alphabetical)","Reverse alphabetical sort",
             "Search installed apps","Show games only","Clear search and filters","Refresh weather","Set weather location",
             "Check for updates","Make default Home launcher","Android system settings","Motion level",
-            "AI Discovery","Refresh app collection","Choose custom wallpaper","Restore Aurora wallpaper"};
+            "AI Discovery","Refresh app collection","Choose custom wallpaper","Restore Aurora wallpaper",
+            "Switch grid / horizontal row","Show / hide app labels","Grid: 4 columns","Grid: 5 columns","Grid: 6 columns"};
         new AlertDialog.Builder(this).setTitle("TV CONTROL CENTER").setItems(labels,(d,i)->{
             switch(i){
                 case 0: allApps=false;gamesOnly=false;sortMode=0;addApps();break;
@@ -377,6 +399,11 @@ public final class ModernHomeActivity extends Activity {
                 case 13:addApps();break;
                 case 14:pickWallpaper();break;
                 case 15:resetWallpaper();break;
+                case 16:gridView=!gridView;addApps();break;
+                case 17:hideLabels=!hideLabels;addApps();break;
+                case 18:gridColumns=4;appGrid.setColumnCount(4);addApps();break;
+                case 19:gridColumns=5;appGrid.setColumnCount(5);addApps();break;
+                case 20:gridColumns=6;appGrid.setColumnCount(6);addApps();break;
                 default:break;
             }
         }).show();
@@ -483,20 +510,25 @@ public final class ModernHomeActivity extends Activity {
         LinearLayout titleRow=new LinearLayout(this);titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView appsLabel=text("Your collection",23,true);
         titleRow.addView(appsLabel,new LinearLayout.LayoutParams(0,-2,1));
-        TextView sort=action("SORT & FILTER","Organize installed apps",this::showMore);
+        TextView sort=action("LAYOUT & FILTER","Organize installed apps",this::showMore);
         sort.setTextSize(13);titleRow.addView(sort);
         LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(-1,-2);
         titleP.topMargin=dp(19);body.addView(titleRow,titleP);
         TextView hint=text("Hold OK for favorites and app controls  ·  Use the remote to navigate",13,false);
         hint.setTextColor(0xFF93ACB1);body.addView(hint);
-        HorizontalScrollView strip=new HorizontalScrollView(this);
-        strip.setHorizontalScrollBarEnabled(false);
-        strip.setClipToPadding(false);
+        appGrid=new GridLayout(this);appGrid.setColumnCount(gridColumns);
+        appGrid.setClipChildren(false);appGrid.setClipToPadding(false);
+        LinearLayout.LayoutParams gridP=new LinearLayout.LayoutParams(-1,-2);
+        gridP.topMargin=dp(12);body.addView(appGrid,gridP);
+        appStrip=new HorizontalScrollView(this);
+        appStrip.setHorizontalScrollBarEnabled(false);
+        appStrip.setClipToPadding(false);
+        appStrip.setVisibility(View.GONE);
         appRow=new LinearLayout(this);appRow.setOrientation(LinearLayout.HORIZONTAL);
         appRow.setClipChildren(false);appRow.setClipToPadding(false);
-        strip.addView(appRow);
+        appStrip.addView(appRow);
         LinearLayout.LayoutParams appsP=new LinearLayout.LayoutParams(-1,dp(182));
-        appsP.topMargin=dp(9);body.addView(strip,appsP);
+        appsP.topMargin=dp(9);body.addView(appStrip,appsP);
         addApps();
         addContinueWatching();
 
