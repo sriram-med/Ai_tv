@@ -29,7 +29,7 @@ jobs:
           disable-animations: true
           script: |
             set -euo pipefail
-            curl -fL --retry 3 -o /tmp/ai-tv-upstream-preview.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.7.3-oss-preview/ai-tv-upstream-preview.apk"
+            curl -fL --retry 3 -o /tmp/ai-tv-upstream-preview.apk "https://github.com/sriram-med/Ai_tv/releases/download/ai-tv-v1.7.4-oss-preview/ai-tv-upstream-preview.apk"
             adb install -r /tmp/ai-tv-upstream-preview.apk
             adb shell am start -W -n com.techpp.glass/com.techpp.glass.MainActivity
             sleep 5
