@@ -87,19 +87,26 @@ helper = r'''
 
     /** AI recommendations use the SAME original tvOS poster components, logos and animations. */
     void openAiChooser() {
-        String[] topics = {"AI MOVIES  /  Tonight", "AI SERIES  /  Binge-worthy",
+        String[] topics = {"MOVIES  /  Tonight", "SERIES  /  Binge-worthy",
             "THRILLERS", "SCIENCE FICTION", "COMEDY", "FAMILY", "DRAMA", "ACTION",
-            "CONNECT GPT / SECURE PAIRING"};
+            "CONNECT GPT"};
         String[] searches = {"popular movies", "popular series", "thriller", "science fiction",
             "comedy", "family", "drama", "action", "movies"};
-        new AlertDialog.Builder(a).setTitle("AI DISCOVERY  ·  Movies & Series")
-            .setItems(topics, (dialog, which) -> {
+        list.removeAllViews();
+        List<View> chips = new ArrayList<>();
+        for(int i=0;i<topics.length;i++){
+            final int which=i;
+            chips.add(chip(topics[i], () -> {
                 String q = query.length() >= 2 ? q() : searches[which];
                 String preference = which == 0 ? "movie" : which == 1 ? "tv" : "";
                 if (which == topics.length - 1) pairForAi(q, preference);
                 else if (new AiTvPairingClient(a).hasSession()) aiPick(q, preference);
                 else showCuratedPicks(q, preference);
-            }).setNegativeButton("Cancel", null).show();
+            }));
+        }
+        addRow("AI DISCOVERY  /  Browse by mood", chips, a.dp(52));
+        addNote("Select movies or series for native poster recommendations. Connect GPT for personalized ranking.");
+        if(!chips.isEmpty())chips.get(0).requestFocus();
     }
 
     /**
