@@ -4,7 +4,8 @@ import subprocess,tempfile,os
 jar=os.environ.get('JSON_JAR','/tmp/ai-tv-check/json.jar')
 assert Path(jar).is_file(),'Set JSON_JAR to org.json 20240303 jar'
 stubs={
-'android/content/Context.java':'''package android.content; public class Context { final java.io.File dir; public Context(java.io.File d){dir=d;} public java.io.File getCacheDir(){return dir;} }''',
+'android/content/Context.java':'''package android.content; public class Context { final java.io.File dir; public Context(java.io.File d){dir=d;} public java.io.File getCacheDir(){return dir;} public android.content.res.AssetManager getAssets(){return new android.content.res.AssetManager();} }''',
+'android/content/res/AssetManager.java':'''package android.content.res; public class AssetManager {public java.io.InputStream open(String name)throws java.io.IOException {return new java.io.FileInputStream("integration/tvos/assets/"+name);}}''',
 'android/util/Log.java':'''package android.util; public class Log {public static int w(String t,String s){return 0;}}''',
 'com/techpp/glass/Search.java':'''package com.techpp.glass; import java.util.*; class Search {
 static class Apps {} static class Offer {}
@@ -40,6 +41,18 @@ public static void main(String[] args)throws Exception {
  for(File file:dir.listFiles())file.delete();
  AiCatalog.Result failure=AiCatalog.load(context,"","",new Search.Apps());
  check(failure.titles.isEmpty()&&failure.message.contains("unavailable"),"Empty source falsely reported success");
+ AiCatalog.Result telugu=AiCatalog.load(context,"","movie",new Search.Apps(),"te");
+ check(telugu.titles.size()>10&&telugu.message.contains("Telugu catalogue"),"Offline Telugu catalogue missing");
+ check(telugu.titles.stream().noneMatch(t->t.imdb.equals("tt1")),"Global catalogue leaked into regional results");
+ String mixed="{\"metas\":[{\"id\":\"tt3\",\"name\":\"Telugu title\",\"originalLanguage\":\"te\"},{\"id\":\"tt4\",\"name\":\"Hindi title\",\"originalLanguage\":\"hi\"}]}";
+ check(RegionalCatalog.parse(mixed,"te","movie").size()==1,"Mixed regional language results");
+ check(TvMediaPolicy.nuvioUri("movie","tt8178634").equals("nuvio://detail/movie/tt8178634"),"Nuvio movie route");
+ check(TvMediaPolicy.nuvioUri("tv","tt12345").equals("nuvio://detail/series/tt12345"),"Nuvio series route");
+ check(TvMediaPolicy.nuvioUri("movie","../../bad").isEmpty(),"Unsafe Nuvio ID accepted");
+ check(TvMediaPolicy.ticketOffer("CINEMA","Cinema","",""),"Cinema booking offer retained");
+ check(TvMediaPolicy.ticketOffer("","BookMyShow","",""),"BookMyShow retained");
+ check(!TvMediaPolicy.ticketOffer("FLATRATE","Netflix","nfx","https://netflix.com"),"Streaming offer removed");
+ System.out.println("PASS: regional language isolation, offline Telugu assets, Nuvio movie/series URIs and ticket offer removal");
  System.out.println("PASS: fallback metadata hosts, no-provider defaults, genre filters, fresh/stale offline cache and explicit empty-source failure");
  System.exit(0);
 }}
@@ -50,5 +63,5 @@ with tempfile.TemporaryDirectory() as tmp:
  for name,code in stubs.items():
   p=Path(tmp)/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(code);files.append(str(p))
  subprocess.run(['java','-m','jdk.compiler/com.sun.tools.javac.Main','-cp',jar,'-d',tmp,
-                 'integration/tvos/AiCatalog.java',*files],check=True)
+                 'integration/tvos/AiCatalog.java','integration/tvos/RegionalCatalog.java','integration/tvos/TvMediaPolicy.java',*files],check=True)
  subprocess.run(['java','-cp',os.pathsep.join([tmp,jar]),'com.techpp.glass.CatalogRegression',tmp+'/cache'],check=True,timeout=30)

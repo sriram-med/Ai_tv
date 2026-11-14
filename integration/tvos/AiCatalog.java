@@ -29,11 +29,14 @@ final class AiCatalog {
         return "";
     }
     static Result load(Context c,String prompt,String kind,Search.Apps apps) {
+        return load(c,prompt,kind,apps,"");
+    }
+    static Result load(Context c,String prompt,String kind,Search.Apps apps,String language) {
         List<Search.Title> all=new ArrayList<>();
         List<Future<List<Search.Title>>> futures=new ArrayList<>();
         for(String type:new String[]{"movie","series"}) {
             if("movie".equals(kind)&&type.equals("series") || "tv".equals(kind)&&type.equals("movie"))continue;
-            futures.add(FETCH.submit(()->catalog(c,type)));
+            futures.add(FETCH.submit(()->language.isEmpty()?catalog(c,type):RegionalCatalog.catalog(c,language,type)));
         }
         int unavailable=0;
         for(Future<List<Search.Title>> f:futures)try {all.addAll(f.get(28,TimeUnit.SECONDS));}
@@ -41,7 +44,7 @@ final class AiCatalog {
         String category=genre(prompt);
         // Exact title lookup supplements the broad pool. Mood phrases are not sent as literal film titles.
         String q=prompt==null?"":prompt.trim();
-        if(category.isEmpty()&&!q.isEmpty()&&!q.matches("(?i)(movies?|series|tonight|popular|binge.*)")) {
+        if(language.isEmpty()&&category.isEmpty()&&!q.isEmpty()&&!q.matches("(?i)(movies?|series|tonight|popular|binge.*)")) {
             try {all.addAll(0,Search.titles(c,q,apps));}
             catch(Exception e){android.util.Log.w("AiCatalog","Title lookup unavailable; using catalog");}
         }
@@ -52,7 +55,7 @@ final class AiCatalog {
             String id=t.type+":"+(t.imdb.isEmpty()?t.title.toLowerCase(Locale.ROOT)+t.year:t.imdb);
             if(seen.add(id)) {if(t.offers.isEmpty())Search.addStremio(c,t);out.add(t);}
         }
-        String label=category.isEmpty()?"Popular catalog":category+" catalog";
+        String label=language.isEmpty()?(category.isEmpty()?"Popular catalog":category+" catalog"):RegionalCatalog.name(language)+" catalogue"+(category.isEmpty()?"":" • "+category);
         if(out.isEmpty())label=all.isEmpty()?"Catalog unavailable. Check the TV internet connection and select RETRY.":"No matching "+(category.isEmpty()?"titles":category)+" titles. Try another mood or browse all.";
         else if(unavailable>0)label+=" • One source unavailable";
         return new Result(out,label);
@@ -95,7 +98,7 @@ final class AiCatalog {
         h.setConnectTimeout(4000);h.setReadTimeout(7000);h.setRequestProperty("User-Agent","AI-TV/1.8.5");h.setRequestProperty("Accept","application/json");
         try {int status=h.getResponseCode();if(status!=200)throw new IOException("HTTP "+status);return read(h.getInputStream());}finally{h.disconnect();}
     }
-    private static String read(InputStream input) throws Exception {
+    static String read(InputStream input) throws Exception {
         try(InputStream in=input;ByteArrayOutputStream out=new ByteArrayOutputStream()) {
             byte[] buffer=new byte[8192];int n;
             while((n=in.read(buffer))!=-1){if(out.size()+n>4*1024*1024)throw new IOException("Catalog too large");out.write(buffer,0,n);}
