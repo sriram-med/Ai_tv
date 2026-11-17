@@ -173,6 +173,7 @@ jobs:
             adb pull /sdcard/ai-tv-after-dpad.png tv-preview-shots/after-dpad.png
             python3 integration/tvos/tests/open_ai_smoke.py
             python3 integration/tvos/tests/check_regional_ui.py
+            python3 integration/tvos/tests/check_mood_ui.py
             python3 integration/tvos/tests/check_ai_layout.py
             python3 integration/tvos/tests/check_nuvio_installed.py
             sleep 2
