@@ -395,6 +395,12 @@ helper = r'''
 
 '''
 data = data.replace(anchor, helper + anchor)
+# Compact TV spacing keeps the first poster labels visible below two toolbar rows.
+data=data.replace('h.setPadding(a.dockOuter, a.dp(14), 0, a.dp(2));','h.setPadding(a.dockOuter, a.dp(aiMode?6:14), 0, a.dp(2));')
+data=data.replace('hs.setPadding(a.dockOuter, a.dp(10), a.dockOuter, a.dp(10));','hs.setPadding(a.dockOuter, a.dp(aiMode?4:10), a.dockOuter, a.dp(aiMode?4:10));')
+data=data.replace('height + a.dp(20)','height + a.dp(aiMode?8:20)')
+data=data.replace('t.setPadding(a.dockOuter, a.dp(24), a.dockOuter, 0);','t.setPadding(a.dockOuter, a.dp(aiMode?6:24), a.dockOuter, 0);')
+
 
 # Empty AI searches return to the mood browser, with search tools still visible.
 data = data.replace('    void render() {',
