@@ -18,9 +18,19 @@ jobs:
         with:
           ref: release/ai-tv-1.8.0
       - id: sync
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 integration/tvos/sync_upstream.py
-          if git diff --quiet; then echo 'changed=false' >> "$GITHUB_OUTPUT"; exit 0; fi
+          if git diff --quiet; then
+            VERSION=$(python3 -c 'import json;print(json.load(open("integration/tvos/upstream.json"))["version"])')
+            if gh release view "ai-tv-v$VERSION" >/dev/null 2>&1; then
+              echo 'changed=false' >> "$GITHUB_OUTPUT"
+            else
+              echo 'changed=true' >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
           git config user.name 'AI TV upstream sync'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add integration/tvos/upstream.json
