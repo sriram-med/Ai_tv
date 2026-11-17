@@ -106,7 +106,7 @@ helper = r'''
     private android.widget.EditText aiSearchInput;
     private View aiFirstKey;
     private LinearLayout aiSearchChrome, aiKeyboard;
-    private TextView regionButton;
+    private TextView regionButton, moodButton;
     private String selectedLanguage="", selectedMood="", selectedKind="";
     private int visiblePerRail=12;
 
@@ -117,6 +117,17 @@ helper = r'''
                 a.getSharedPreferences("ai_regions",0).edit().putString("language",selectedLanguage).apply();
                 regionButton.setText(selectedLanguage.isEmpty()?"REGION":RegionalCatalog.name(selectedLanguage).toUpperCase(java.util.Locale.ROOT));
                 aiKeyboard.setVisibility(View.GONE);dialog.dismiss();aiPick(q(),"");
+            }).setNegativeButton("Close",null).show();
+    }
+    private void chooseMood() {
+        String[] labels={"All moods","Feel good","Unwind","Adrenaline","Mind bending","Dark & tense","Family","Romantic"};
+        String[] queries={"","comedy","documentary","action","science fiction","thriller","family","romance"};
+        int selected=java.util.Arrays.asList(queries).indexOf(selectedMood);
+        new AlertDialog.Builder(a).setTitle("How do you feel?")
+            .setSingleChoiceItems(labels,Math.max(0,selected),(dialog,index)->{
+                selectedMood=queries[index];visiblePerRail=12;
+                moodButton.setText(index==0?"MOOD":labels[index].toUpperCase(java.util.Locale.ROOT));
+                aiKeyboard.setVisibility(View.GONE);dialog.dismiss();aiPick(q(),selectedKind);
             }).setNegativeButton("Close",null).show();
     }
     private void openNuvio() {
@@ -191,6 +202,8 @@ helper = r'''
         }));
         regionButton=(TextView)chip(selectedLanguage.isEmpty()?"REGION":RegionalCatalog.name(selectedLanguage).toUpperCase(java.util.Locale.ROOT),this::chooseRegion);
         bar.addView(regionButton);
+        moodButton=(TextView)chip("MOOD",this::chooseMood);
+        bar.addView(moodButton);
         bar.addView(chip("NUVIO",this::openNuvio));
         aiSearchChrome.addView(bar);
         aiSearchInput.addTextChangedListener(new android.text.TextWatcher() {
@@ -270,16 +283,7 @@ helper = r'''
                 which==0?"movie":which==1?"tv":"")));
         }
         addRow("EXPLORE  /  MOVIES & SERIES",chips,a.dp(44));
-        String[] moods={"ALL MOODS","FEEL GOOD","UNWIND","ADRENALINE","MIND BENDING","DARK & TENSE","FAMILY","ROMANTIC"};
-        String[] queries={"","comedy","documentary","action","science fiction","thriller","family","romance"};
-        List<View> moodChips=new ArrayList<>();
-        for(int i=0;i<moods.length;i++) {
-            final String mood=queries[i];
-            moodChips.add(chip((selectedMood.equals(mood)?"✓ ":"")+moods[i],()->{
-                selectedMood=mood;visiblePerRail=12;aiPick(q(),selectedKind);
-            }));
-        }
-        addRow("HOW DO YOU FEEL?",moodChips,a.dp(40));
+
     }
 
     /**
@@ -361,7 +365,7 @@ helper = r'''
                 addAiTopics();
                 List<View> actions=new ArrayList<>();
                 actions.add(chip("RETRY",()->aiPick(queryText,type)));
-                actions.add(chip("BROWSE ALL",()->{selectedMood="";selectedKind="";visiblePerRail=12;aiPick("","");}));
+                actions.add(chip("BROWSE ALL",()->{selectedMood="";selectedKind="";moodButton.setText("MOOD");visiblePerRail=12;aiPick("","");}));
                 if(!mood.isEmpty())ready.removeIf(t->!AiCatalog.matchesGenre(t.genres,AiCatalog.genre(mood)));
                 if(ready.isEmpty()) {
                     addRow("CATALOG",actions,a.dp(34));addNote(result.message);return;
