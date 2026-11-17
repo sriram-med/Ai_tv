@@ -330,7 +330,13 @@ helper = r'''
     /** Rank only verified catalog objects; IDs map back to the original poster cards. */
     private List<Search.Title> rankTitles(String prompt, List<Search.Title> titles) {
         List<ContentRecommender.Item> items = new ArrayList<>();
-        for (int i=0;i<titles.size();i++) {
+        List<Integer> movieIds=new ArrayList<>(),seriesIds=new ArrayList<>(),balanced=new ArrayList<>();
+        for(int i=0;i<titles.size();i++)("tv".equals(titles.get(i).type)?seriesIds:movieIds).add(i);
+        for(int row=0;row<Math.max(movieIds.size(),seriesIds.size());row++) {
+            if(row<movieIds.size())balanced.add(movieIds.get(row));
+            if(row<seriesIds.size())balanced.add(seriesIds.get(row));
+        }
+        for (int i:balanced) {
             Search.Title title=titles.get(i);
             items.add(new ContentRecommender.Item(String.valueOf(i),
                 title.title+" "+title.genres+" "+(title.overview == null ? "" : title.overview)));

@@ -6,9 +6,17 @@ def tree():
     adb('shell','uiautomator','dump','/sdcard/mood.xml')
     return ET.fromstring(adb('shell','cat','/sdcard/mood.xml'))
 def click(label):
-    node=next(n for n in tree().iter('node') if n.get('text','').casefold()==label.casefold())
-    x,y,r,b=map(int,re.findall(r'\d+',node.get('bounds','')))
-    adb('shell','input','tap',str((x+r)//2),str((y+b)//2))
+    for _ in range(6):
+        root=tree();nodes=[n for n in root.iter('node') if n.get('text','').casefold()==label.casefold()]
+        if nodes:
+            x,y,r,b=map(int,re.findall(r'\d+',nodes[0].get('bounds','')))
+            adb('shell','input','tap',str((x+r)//2),str((y+b)//2));return
+        lists=[n for n in root.iter('node') if n.get('class')=='android.widget.ListView']
+        if not lists:break
+        x,y,r,b=map(int,re.findall(r'\d+',lists[0].get('bounds','')))
+        start,end=(y+30,b-30) if label=='All moods' else (b-30,y+30)
+        adb('shell','input','swipe',str((x+r)//2),str(start),str((x+r)//2),str(end),'250');time.sleep(.3)
+    raise AssertionError('Mood option not reachable: '+label)
 click('MOOD');time.sleep(.5);click('Dark & tense')
 for _ in range(15):
     time.sleep(1);root=tree();texts=' '.join(n.get('text','') for n in root.iter('node'))
