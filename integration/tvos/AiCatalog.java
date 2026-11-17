@@ -11,6 +11,8 @@ import java.util.concurrent.*;
 
 final class AiCatalog {
     private static final ExecutorService FETCH=Executors.newFixedThreadPool(2);
+    private static final ExecutorService REFRESH=Executors.newFixedThreadPool(2);
+    private static final Set<String> refreshing=ConcurrentHashMap.newKeySet();
     private static final long FRESH=6*3600_000L;
     static final class Result {
         final List<Search.Title> titles;
@@ -60,6 +62,20 @@ final class AiCatalog {
         String saved=null;
         try {saved=read(new FileInputStream(cache));if(System.currentTimeMillis()-cache.lastModified()<FRESH){List<Search.Title> p=parse(saved,kind);if(!p.isEmpty())return p;}}
         catch(Exception ignored){}
+        try {
+            String snapshot=saved;
+            if(snapshot==null)snapshot=read(new java.util.zip.GZIPInputStream(c.getAssets().open("global_"+kind+".json.gz")));
+            List<Search.Title> local=parse(snapshot,kind);
+            if(!local.isEmpty()) {
+                if(refreshing.add(kind))REFRESH.execute(()->{try{refresh(c,kind);}catch(Exception ignored){}finally{refreshing.remove(kind);}});
+                return local;
+            }
+        }catch(Exception ignored){}
+        return refresh(c,kind);
+    }
+    private static List<Search.Title> refresh(Context c,String kind) throws Exception {
+        File cache=new File(c.getCacheDir(),"ai_catalog_v2_"+kind+".json");
+        String saved=null;try{saved=read(new FileInputStream(cache));}catch(Exception ignored){}
         String[] urls={"https://v3-cinemeta.strem.io/catalog/"+kind+"/top/skip=0.json",
             "https://cinemeta-catalogs.strem.io/top/catalog/"+kind+"/top.json"};
         for(String url:urls)try {

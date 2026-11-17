@@ -26,6 +26,8 @@ shutil.copy2("integration/tvos/AiCatalog.java", dest / "AiCatalog.java")
 shutil.copy2("integration/tvos/RegionalCatalog.java", dest / "RegionalCatalog.java")
 shutil.copy2("integration/tvos/TvMediaPolicy.java", dest / "TvMediaPolicy.java")
 shutil.copy2("integration/tvos/assets/regional_catalogs.json.gz", root / "assets/regional_catalogs.json.gz")
+for kind in ["movie","series"]:
+    shutil.copy2(f"integration/tvos/assets/global_{kind}.json.gz",root / f"assets/global_{kind}.json.gz")
 shutil.copy2("vendor/recommenders/LICENSE", root / "assets/RECOMMENDERS-LICENSE.txt")
 shutil.copy2("vendor/shadcn-ui/LICENSE.md", root / "assets/SHADCN-LICENSE.txt")
 
@@ -359,7 +361,8 @@ helper = r'''
                 addAiTopics();
                 List<View> actions=new ArrayList<>();
                 actions.add(chip("RETRY",()->aiPick(queryText,type)));
-                actions.add(chip("BROWSE ALL",()->aiPick("","")));
+                actions.add(chip("BROWSE ALL",()->{selectedMood="";selectedKind="";visiblePerRail=12;aiPick("","");}));
+                if(!mood.isEmpty())ready.removeIf(t->!t.genres.toLowerCase(java.util.Locale.ROOT).contains(AiCatalog.genre(mood).toLowerCase(java.util.Locale.ROOT)));
                 if(ready.isEmpty()) {
                     addRow("CATALOG",actions,a.dp(34));addNote(result.message);return;
                 }

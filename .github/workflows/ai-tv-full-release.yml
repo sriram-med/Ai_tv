@@ -133,6 +133,8 @@ jobs:
             UPSTREAM-LICENSE.txt
             UPSTREAM-NOTICE.txt
             RECOMMENDERS-LICENSE.txt
+      - name: Build Nuvio variant discovery probe
+        run: bash integration/tvos/tests/build_nuvio_probe.sh
       - name: Enable hardware acceleration
         run: |
           if test -e /dev/kvm; then sudo chmod 666 /dev/kvm; fi
@@ -171,6 +173,7 @@ jobs:
             python3 integration/tvos/tests/open_ai_smoke.py
             python3 integration/tvos/tests/check_regional_ui.py
             python3 integration/tvos/tests/check_ai_layout.py
+            python3 integration/tvos/tests/check_nuvio_installed.py
             sleep 2
             adb shell screencap -p /sdcard/ai-tv-ai-discovery.png
             adb pull /sdcard/ai-tv-ai-discovery.png tv-preview-shots/ai-discovery-entry.png

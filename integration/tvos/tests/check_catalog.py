@@ -5,7 +5,7 @@ jar=os.environ.get('JSON_JAR','/tmp/ai-tv-check/json.jar')
 assert Path(jar).is_file(),'Set JSON_JAR to org.json 20240303 jar'
 stubs={
 'android/content/Context.java':'''package android.content; public class Context { final java.io.File dir; public Context(java.io.File d){dir=d;} public java.io.File getCacheDir(){return dir;} public android.content.res.AssetManager getAssets(){return new android.content.res.AssetManager();} }''',
-'android/content/res/AssetManager.java':'''package android.content.res; public class AssetManager {public java.io.InputStream open(String name)throws java.io.IOException {return new java.io.FileInputStream("integration/tvos/assets/"+name);}}''',
+'android/content/res/AssetManager.java':'''package android.content.res; public class AssetManager {public java.io.InputStream open(String name)throws java.io.IOException {if(name.startsWith("global_"))throw new java.io.IOException("Exercise network fallback independently of bundled startup");return new java.io.FileInputStream("integration/tvos/assets/"+name);}}''',
 'android/util/Log.java':'''package android.util; public class Log {public static int w(String t,String s){return 0;}}''',
 'com/techpp/glass/Search.java':'''package com.techpp.glass; import java.util.*; class Search {
 static class Apps {} static class Offer {}
@@ -38,6 +38,7 @@ public static void main(String[] args)throws Exception {
  check(calls==previous,"Fresh cached catalog should work without network");
  for(File file:dir.listFiles())file.setLastModified(1);
  check(AiCatalog.load(context,"","",new Search.Apps()).titles.size()==4,"Offline stale cache failed");
+ Thread.sleep(300);
  for(File file:dir.listFiles())file.delete();
  AiCatalog.Result failure=AiCatalog.load(context,"","",new Search.Apps());
  check(failure.titles.isEmpty()&&failure.message.contains("unavailable"),"Empty source falsely reported success");
