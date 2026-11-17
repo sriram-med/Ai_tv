@@ -42,12 +42,7 @@ final class AiCatalog {
         for(Future<List<Search.Title>> f:futures)try {all.addAll(f.get(28,TimeUnit.SECONDS));}
         catch(Exception e){f.cancel(true);unavailable++;android.util.Log.w("AiCatalog","Catalog unavailable: "+e.getClass().getSimpleName());}
         String category=genre(prompt);
-        // Exact title lookup supplements the broad pool. Mood phrases are not sent as literal film titles.
-        String q=prompt==null?"":prompt.trim();
-        if(language.isEmpty()&&category.isEmpty()&&!q.isEmpty()&&!q.matches("(?i)(movies?|series|tonight|popular|binge.*)")) {
-            try {all.addAll(0,Search.titles(c,q,apps));}
-            catch(Exception e){android.util.Log.w("AiCatalog","Title lookup unavailable; using catalog");}
-        }
+        // SEARCH resolves exact titles separately. Recommendations never wait on a literal mood lookup.
         List<Search.Title> out=new ArrayList<>();Set<String> seen=new HashSet<>();
         for(Search.Title t:all) {
             if(t==null||t.title.isEmpty()||(!kind.isEmpty()&&!kind.equals(t.type)))continue;

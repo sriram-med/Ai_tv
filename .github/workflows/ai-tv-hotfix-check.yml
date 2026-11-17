@@ -18,7 +18,7 @@ jobs:
       - name: Prepare pinned upstream and apply integration
         run: |
           git clone --no-checkout https://github.com/techgenius1/tvOS-Launcher.git upstream
-          git -C upstream fetch --depth 1 origin 463fa6c2a9b7322c4407f1d00db935ef09d20f4f
+          git -C upstream fetch --depth 1 origin ddfd2531fd3cc5fd1d6790d7fad21cf71389b4dc
           git -C upstream checkout --detach FETCH_HEAD
           python3 integration/tvos/patch_upstream.py
           cp app/src/main/java/com/techpp/glass/AiTvPairingClient.java upstream/src/com/techpp/glass/

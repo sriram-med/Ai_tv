@@ -1,0 +1,34 @@
+name: Follow stable tvOS releases
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ai-tv-upstream-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.sync.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/ai-tv-1.8.0
+      - id: sync
+        run: |
+          python3 integration/tvos/sync_upstream.py
+          if git diff --quiet; then echo 'changed=false' >> "$GITHUB_OUTPUT"; exit 0; fi
+          git config user.name 'AI TV upstream sync'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add integration/tvos/upstream.json
+          git commit -m 'Pin new stable tvOS release for signed AI TV integration'
+          git push origin HEAD:release/ai-tv-1.8.0
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+  integrate-test-release:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    uses: sriram-med/Ai_tv/.github/workflows/ai-tv-full-release.yml@release/ai-tv-1.8.0
+    secrets: inherit
