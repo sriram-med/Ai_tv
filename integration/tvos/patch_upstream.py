@@ -26,7 +26,10 @@ shutil.copy2("integration/tvos/AiCatalog.java", dest / "AiCatalog.java")
 shutil.copy2("integration/tvos/RegionalCatalog.java", dest / "RegionalCatalog.java")
 shutil.copy2("integration/tvos/TvMediaPolicy.java", dest / "TvMediaPolicy.java")
 shutil.copy2("integration/tvos/assets/regional_catalogs.json.gz", root / "assets/regional_catalogs.json.gz")
+for kind in ["movie","series"]:
+    shutil.copy2(f"integration/tvos/assets/global_{kind}.json.gz",root / f"assets/global_{kind}.json.gz")
 shutil.copy2("vendor/recommenders/LICENSE", root / "assets/RECOMMENDERS-LICENSE.txt")
+shutil.copy2("vendor/shadcn-ui/LICENSE.md", root / "assets/SHADCN-LICENSE.txt")
 
 manifest = root / "AndroidManifest.xml"
 content = manifest.read_text()
@@ -104,7 +107,8 @@ helper = r'''
     private View aiFirstKey;
     private LinearLayout aiSearchChrome, aiKeyboard;
     private TextView regionButton;
-    private String selectedLanguage="";
+    private String selectedLanguage="", selectedMood="", selectedKind="";
+    private int visiblePerRail=12;
 
     private void chooseRegion() {
         new AlertDialog.Builder(a).setTitle("Regional catalogue")
@@ -116,8 +120,10 @@ helper = r'''
             }).setNegativeButton("Close",null).show();
     }
     private void openNuvio() {
-        Intent launch=a.getPackageManager().getLeanbackLaunchIntentForPackage(TvMediaPolicy.NUVIO_PACKAGE);
-        if(launch==null)launch=a.getPackageManager().getLaunchIntentForPackage(TvMediaPolicy.NUVIO_PACKAGE);
+        String nuvioPackage=NuvioCloud.installedApp(a);
+        if(nuvioPackage==null)nuvioPackage=TvMediaPolicy.NUVIO_PACKAGE;
+        Intent launch=a.getPackageManager().getLeanbackLaunchIntentForPackage(nuvioPackage);
+        if(launch==null)launch=a.getPackageManager().getLaunchIntentForPackage(nuvioPackage);
         if(launch!=null){a.startActivity(launch);return;}
         new AlertDialog.Builder(a).setTitle("Nuvio TV is not installed")
             .setMessage("Install Nuvio TV to open recommended titles and use its configured library and add-ons.")
@@ -147,9 +153,9 @@ helper = r'''
         aiSearchChrome.setOrientation(LinearLayout.VERTICAL);
         aiSearchChrome.setPadding(a.dockOuter, a.dp(8), a.dockOuter, a.dp(8));
         GradientDrawable surface = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xF0233948, 0xE7101828});
+                new int[]{0xFA18181B, 0xF009090B});
         surface.setCornerRadius(a.dp(18));
-        surface.setStroke(a.dp(1), 0x805A9EAC);
+        surface.setStroke(a.dp(1), 0xFF3F3F46);
         aiSearchChrome.setBackground(surface);
         LinearLayout.LayoutParams chromeParams=new LinearLayout.LayoutParams(-1,-2);
         chromeParams.topMargin=a.dp(10);
@@ -164,17 +170,21 @@ helper = r'''
         aiSearchInput.setSingleLine(true);
         aiSearchInput.setTextColor(Color.WHITE);
         aiSearchInput.setHintTextColor(0xFFAAC1D1);
-        aiSearchInput.setHint("Search a title, actor, genre or mood...");
+        aiSearchInput.setHint("Search movies, series or a mood...");
         aiSearchInput.setTextSize(16);
         aiSearchInput.setPadding(a.dp(12), a.dp(8), a.dp(12), a.dp(8));
         aiSearchInput.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
         aiSearchInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
         GradientDrawable field = new GradientDrawable();
-        field.setColor(0xFF0D1927); field.setCornerRadius(a.dp(10));
+        field.setColor(0xFF09090B); field.setCornerRadius(a.dp(10));
         field.setStroke(a.dp(1), 0xFF5D8EAA); aiSearchInput.setBackground(field);
         bar.addView(aiSearchInput, new LinearLayout.LayoutParams(0, a.dp(44), 1f));
         bar.addView(chip("SEARCH", () -> submitAiSearch(false)));
         bar.addView(chip("RECOMMEND", () -> submitAiSearch(true)));
+        aiSearchChrome.addView(bar);
+        bar = new LinearLayout(a);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(0,a.dp(6),0,0);
         bar.addView(chip("KEYBOARD", () -> {
             aiKeyboard.setVisibility(aiKeyboard.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);
             if(aiKeyboard.getVisibility()==View.VISIBLE && aiFirstKey!=null)aiFirstKey.requestFocus();
@@ -259,14 +269,24 @@ helper = r'''
             chips.add(chip(topics[i],()->showCuratedPicks(prompts[which],
                 which==0?"movie":which==1?"tv":"")));
         }
-        addRow("EXPLORE  /  MOVIES, SERIES & MOODS",chips,a.dp(44));
+        addRow("EXPLORE  /  MOVIES & SERIES",chips,a.dp(44));
+        String[] moods={"ALL MOODS","FEEL GOOD","UNWIND","ADRENALINE","MIND BENDING","DARK & TENSE","FAMILY","ROMANTIC"};
+        String[] queries={"","comedy","documentary","action","science fiction","thriller","family","romance"};
+        List<View> moodChips=new ArrayList<>();
+        for(int i=0;i<moods.length;i++) {
+            final String mood=queries[i];
+            moodChips.add(chip((selectedMood.equals(mood)?"✓ ":"")+moods[i],()->{
+                selectedMood=mood;visiblePerRail=12;aiPick(q(),selectedKind);
+            }));
+        }
+        addRow("HOW DO YOU FEEL?",moodChips,a.dp(40));
     }
 
     /**
      * Content-based ranking adapted from the MIT-licensed Recommenders model. Reuses ORIGINAL upstream JustWatch /
      * Stremio recommendation sources and poster card builder.
      */
-    void showCuratedPicks(String q, String kind) { aiPick(q,kind); }
+    void showCuratedPicks(String q, String kind) { selectedKind=kind;visiblePerRail=12;aiPick(q,kind); }
 
     /** Resolve real regional offers on demand for metadata-only catalog cards. */
     private View recommendationCard(Search.Title title) {
@@ -292,13 +312,21 @@ helper = r'''
                 });
             });
         });
+        card.setCameraDistance(a.dp(8000));
+        card.setOnFocusChangeListener((v,focused)->{
+            boolean motion=android.provider.Settings.Global.getFloat(a.getContentResolver(),android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,1f)>0;
+            v.animate().cancel();
+            v.animate().scaleX(focused?1.025f:1f).scaleY(focused?1.025f:1f)
+                .rotationY(focused&&motion?-3f:0f).rotationX(focused&&motion?1.5f:0f)
+                .translationZ(focused?a.dp(8):0).setDuration(motion?160:0).start();
+        });
         return card;
     }
 
     /** Rank only verified catalog objects; IDs map back to the original poster cards. */
     private List<Search.Title> rankTitles(String prompt, List<Search.Title> titles) {
         List<ContentRecommender.Item> items = new ArrayList<>();
-        for (int i=0;i<titles.size() && i<80;i++) {
+        for (int i=0;i<titles.size();i++) {
             Search.Title title=titles.get(i);
             items.add(new ContentRecommender.Item(String.valueOf(i),
                 title.title+" "+title.genres+" "+(title.overview == null ? "" : title.overview)));
@@ -314,15 +342,17 @@ helper = r'''
         final int requestGeneration = ++gen;
         final String queryText = prompt == null ? "" : prompt.trim();
         final String requestLanguage=selectedLanguage;
+        final String mood=selectedMood;
+        final String requestKind=type.isEmpty()?selectedKind:type;
         list.removeAllViews();
         addNote("Finding movies and series for you...");
         net.execute(() -> {
             AiCatalog.Result fetched;
-            try { fetched=AiCatalog.load(a,queryText,type,apps,requestLanguage); }
+            try { fetched=AiCatalog.load(a,queryText.isEmpty()?mood:queryText,requestKind,apps,requestLanguage); }
             catch(Exception e) { fetched=new AiCatalog.Result(new ArrayList<>(),"Catalog unavailable. Select RETRY."); }
             AiCatalog.Result result=fetched;
             List<Search.Title> ranked;
-            try {ranked=rankTitles(queryText,result.titles);}
+            try {ranked=rankTitles(queryText+" "+mood,result.titles);}
             catch(Exception e) {ranked=result.titles;}
             List<Search.Title> ready=ranked;
             a.handler.post(() -> {
@@ -331,18 +361,28 @@ helper = r'''
                 addAiTopics();
                 List<View> actions=new ArrayList<>();
                 actions.add(chip("RETRY",()->aiPick(queryText,type)));
-                actions.add(chip("BROWSE ALL",()->aiPick("","")));
+                actions.add(chip("BROWSE ALL",()->{selectedMood="";selectedKind="";visiblePerRail=12;aiPick("","");}));
+                if(!mood.isEmpty())ready.removeIf(t->!AiCatalog.matchesGenre(t.genres,AiCatalog.genre(mood)));
                 if(ready.isEmpty()) {
                     addRow("CATALOG",actions,a.dp(34));addNote(result.message);return;
                 }
                 addNote(ready.size()+" recommendations • "+result.message+" • Ranked on this TV");
                 List<View> movies=new ArrayList<>(),shows=new ArrayList<>();
+                int movieCount=0,showCount=0;
                 for(Search.Title title:ready) {
+                    if(!mood.isEmpty()&&!AiCatalog.matchesGenre(title.genres,AiCatalog.genre(mood)))continue;
+                    if("tv".equals(title.type)){if(showCount++>=visiblePerRail)continue;}
+                    else if(movieCount++>=visiblePerRail)continue;
                     if("tv".equals(title.type))shows.add(recommendationCard(title));
                     else movies.add(recommendationCard(title));
                 }
                 if(!movies.isEmpty())addRow("RECOMMENDED MOVIES",movies,a.dp(176));
                 if(!shows.isEmpty())addRow("RECOMMENDED SERIES",shows,a.dp(176));
+                if(movieCount>visiblePerRail||showCount>visiblePerRail) {
+                    List<View> more=new ArrayList<>();
+                    more.add(chip("SHOW MORE",()->{visiblePerRail+=12;aiPick(queryText,requestKind);}));
+                    addRow("MORE PICKS",more,a.dp(40));
+                }
                 addNote("Streaming availability varies by region and subscription.");
             });
         });
@@ -396,22 +436,8 @@ search.write_text(data)
 # Nuvio and Stremio remain individually selectable when both are installed.
 search_api=dest / "Search.java"
 api=search_api.read_text()
-start=api.index('    static void addStremio(Context c, Title t) {')
-end=api.index('    static String tidyService',start)
-api=api[:start]+'''    static void addStremio(Context c, Title t) {
-        if(t.imdb.isEmpty())return;
-        for(Suggestions.Provider p:new Suggestions.Provider[]{Suggestions.NUVIO,Suggestions.STREMIO}) {
-            if(!Suggestions.installed(c,p.pkg))continue;
-            boolean exists=false;for(Offer current:t.offers)if(p.pkg.equals(current.pkg))exists=true;
-            if(exists)continue;
-            Offer o=new Offer();o.service=p.name;o.tech=p==Suggestions.NUVIO?"nuvio":"stremio";
-            o.monetization="STREMIO";o.pkg=p.pkg;t.offers.add(o);
-        }
-    }
-
-'''+api[end:]
+assert 'Suggestions.stremioAppFor(c, o.pkg)' in api
 api=api.replace('        for (Offer o : raw) {','        for (Offer o : raw) {\n            if(TvMediaPolicy.ticketOffer(o.monetization,o.service,o.tech,o.web))continue;',1)
-api=api.replace('Suggestions.openStremio(c, it, Suggestions.stremioApp(c));','Suggestions.openStremio(c, it, Suggestions.NUVIO.pkg.equals(o.pkg)?Suggestions.NUVIO:Suggestions.STREMIO);',1)
 search_api.write_text('// Modified for AI TV (2026): explicit Nuvio routing and no cinema booking offers.\n'+api)
 suggestions_api=dest / "Suggestions.java"
 api=suggestions_api.read_text()
@@ -503,7 +529,7 @@ content = content.replace('String apkUrl = GITHUB_FALLBACK_APK;', 'String apkUrl
 content = content.replace('                prefs(appCtx).edit()\n',
     '                if (apkUrl.isEmpty()) throw new Exception("Release has no AI TV APK");\n                prefs(appCtx).edit()\n', 1)
 content = content.replace('                try {\n                    Intent permIntent',
-    '                prefs(activity).edit().putBoolean(PENDING_INSTALL, true).apply();\n                try {\n                    Intent permIntent', 1)
+    '                prefs(activity).edit().putBoolean(PENDING_INSTALL, true).putString("pending_apk",apkFile.getAbsolutePath()).apply();\n                try {\n                    Intent permIntent', 1)
 content = content.replace('                } catch (Throwable ignored) {\n                }\n                return;\n            }\n\n            PackageInstaller pi',
     '                } catch (Throwable unavailable) {\n                    prefs(activity).edit().remove(PENDING_INSTALL).apply();\n                    Toast.makeText(activity, "Open Android Settings and allow AI TV to install apps, then retry Updates.", Toast.LENGTH_LONG).show();\n                }\n                return;\n            }\n            prefs(activity).edit().remove(PENDING_INSTALL).apply();\n\n            PackageInstaller pi', 1)
 method = r'''    /** Resume only an install explicitly requested before opening Android permission settings. */
@@ -511,8 +537,12 @@ method = r'''    /** Resume only an install explicitly requested before opening 
         if (!prefs(activity).getBoolean(PENDING_INSTALL, false)) return;
         if (Build.VERSION.SDK_INT >= 26 && !activity.getPackageManager().canRequestPackageInstalls()) return;
         prefs(activity).edit().remove(PENDING_INSTALL).apply();
-        File apk = new File(activity.getCacheDir(), "tvos-update.apk");
-        if (apk.exists()) installWithPackageInstaller(activity, apk);
+        File apk = new File(prefs(activity).getString("pending_apk", ""));
+        prefs(activity).edit().remove("pending_apk").apply();
+        try {
+            if(apk.getCanonicalFile().getParentFile().equals(getUpdatesFolder(activity).getCanonicalFile())
+                && isValidDownloadedApk(activity,apk,null)) installWithPackageInstaller(activity, apk);
+        } catch(Exception invalid) {}
     }
 
 '''
@@ -520,6 +550,9 @@ content = content.replace('    private static void copyFile(', method + '    pri
 content = content.replace('"Could not check for updates.",', '"Could not check for updates: " + errorMsg,')
 content = content.replace('            } else if (status == PackageInstaller.STATUS_SUCCESS) {',
     '            } else if (status != PackageInstaller.STATUS_SUCCESS) {\n                Toast.makeText(context, "Update not installed: " + intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE), Toast.LENGTH_LONG).show();\n            } else if (status == PackageInstaller.STATUS_SUCCESS) {')
+auto_dialog='                showUpdateAvailableDialog(\n                        activity,\n                        latestVersion,\n                        downloadUrl,\n                        getCachedChangelog(activity),\n                        null);'
+assert auto_dialog in content
+content=content.replace(auto_dialog,'                downloadAndInstall(activity, downloadUrl, latestVersion, true, null);',1)
 updater.write_text(content)
 for activity in [main, settings]:
     code = activity.read_text()
@@ -535,3 +568,22 @@ for edited in [main, search, updater, settings, scene]:
                       source_code, encoding="utf-8")
 
 print("Upstream patch applied to pinned Java tvOS Launcher; original UI and licences preserved.")
+
+# Discover Nuvio variants exposed as launchable apps, then preserve upstream's explicit linking.
+nuvio=dest / "NuvioCloud.java"
+code=nuvio.read_text()
+anchor='        List<String> linked = new ArrayList<>(linkedApps(c));'
+assert code.count(anchor)==1
+code=code.replace(anchor,'''        android.content.pm.PackageManager pm=c.getPackageManager();
+        Set<String> discovered=linkedApps(c);
+        for(String category:new String[]{android.content.Intent.CATEGORY_LEANBACK_LAUNCHER,android.content.Intent.CATEGORY_LAUNCHER}) {
+            android.content.Intent query=new android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(category);
+            for(android.content.pm.ResolveInfo ri:pm.queryIntentActivities(query,0)) {
+                String pkg=ri.activityInfo.packageName;
+                String label=String.valueOf(ri.loadLabel(pm)).toLowerCase(java.util.Locale.ROOT);
+                if(isOfficial(pkg)||label.contains("nuvio"))discovered.add(pkg);
+            }
+        }
+        for(String pkg:discovered)if(!isOfficial(pkg))setLinked(c,pkg,true);
+        List<String> linked = new ArrayList<>(discovered);''')
+nuvio.write_text('// Modified for AI TV: discover installed Nuvio variants.\n'+code)

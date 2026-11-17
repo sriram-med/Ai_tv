@@ -11,6 +11,8 @@ import java.util.concurrent.*;
 
 final class AiCatalog {
     private static final ExecutorService FETCH=Executors.newFixedThreadPool(2);
+    private static final ExecutorService REFRESH=Executors.newFixedThreadPool(2);
+    private static final Set<String> refreshing=ConcurrentHashMap.newKeySet();
     private static final long FRESH=6*3600_000L;
     static final class Result {
         final List<Search.Title> titles;
@@ -28,6 +30,10 @@ final class AiCatalog {
             if(q.matches(".*\\b"+java.util.regex.Pattern.quote(group[i])+"\\b.*"))return group[0];
         return "";
     }
+    static boolean matchesGenre(String genres,String category) {
+        String normalized=(genres==null?"":genres).toLowerCase(Locale.ROOT).replace("science fiction","sci-fi").replace("romantic","romance");
+        return category==null||category.isEmpty()||normalized.contains(category.toLowerCase(Locale.ROOT));
+    }
     static Result load(Context c,String prompt,String kind,Search.Apps apps) {
         return load(c,prompt,kind,apps,"");
     }
@@ -42,16 +48,11 @@ final class AiCatalog {
         for(Future<List<Search.Title>> f:futures)try {all.addAll(f.get(28,TimeUnit.SECONDS));}
         catch(Exception e){f.cancel(true);unavailable++;android.util.Log.w("AiCatalog","Catalog unavailable: "+e.getClass().getSimpleName());}
         String category=genre(prompt);
-        // Exact title lookup supplements the broad pool. Mood phrases are not sent as literal film titles.
-        String q=prompt==null?"":prompt.trim();
-        if(language.isEmpty()&&category.isEmpty()&&!q.isEmpty()&&!q.matches("(?i)(movies?|series|tonight|popular|binge.*)")) {
-            try {all.addAll(0,Search.titles(c,q,apps));}
-            catch(Exception e){android.util.Log.w("AiCatalog","Title lookup unavailable; using catalog");}
-        }
+        // SEARCH resolves exact titles separately. Recommendations never wait on a literal mood lookup.
         List<Search.Title> out=new ArrayList<>();Set<String> seen=new HashSet<>();
         for(Search.Title t:all) {
             if(t==null||t.title.isEmpty()||(!kind.isEmpty()&&!kind.equals(t.type)))continue;
-            if(!category.isEmpty()&&!t.genres.toLowerCase(Locale.ROOT).contains(category.toLowerCase(Locale.ROOT)))continue;
+            if(!matchesGenre(t.genres,category))continue;
             String id=t.type+":"+(t.imdb.isEmpty()?t.title.toLowerCase(Locale.ROOT)+t.year:t.imdb);
             if(seen.add(id)) {if(t.offers.isEmpty())Search.addStremio(c,t);out.add(t);}
         }
@@ -65,6 +66,20 @@ final class AiCatalog {
         String saved=null;
         try {saved=read(new FileInputStream(cache));if(System.currentTimeMillis()-cache.lastModified()<FRESH){List<Search.Title> p=parse(saved,kind);if(!p.isEmpty())return p;}}
         catch(Exception ignored){}
+        try {
+            String snapshot=saved;
+            if(snapshot==null)snapshot=read(new java.util.zip.GZIPInputStream(c.getAssets().open("global_"+kind+".json.gz")));
+            List<Search.Title> local=parse(snapshot,kind);
+            if(!local.isEmpty()) {
+                if(refreshing.add(kind))REFRESH.execute(()->{try{refresh(c,kind);}catch(Exception ignored){}finally{refreshing.remove(kind);}});
+                return local;
+            }
+        }catch(Exception ignored){}
+        return refresh(c,kind);
+    }
+    private static List<Search.Title> refresh(Context c,String kind) throws Exception {
+        File cache=new File(c.getCacheDir(),"ai_catalog_v2_"+kind+".json");
+        String saved=null;try{saved=read(new FileInputStream(cache));}catch(Exception ignored){}
         String[] urls={"https://v3-cinemeta.strem.io/catalog/"+kind+"/top/skip=0.json",
             "https://cinemeta-catalogs.strem.io/top/catalog/"+kind+"/top.json"};
         for(String url:urls)try {
