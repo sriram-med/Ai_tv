@@ -326,7 +326,7 @@ helper = r'''
     /** Rank only verified catalog objects; IDs map back to the original poster cards. */
     private List<Search.Title> rankTitles(String prompt, List<Search.Title> titles) {
         List<ContentRecommender.Item> items = new ArrayList<>();
-        for (int i=0;i<titles.size() && i<80;i++) {
+        for (int i=0;i<titles.size();i++) {
             Search.Title title=titles.get(i);
             items.add(new ContentRecommender.Item(String.valueOf(i),
                 title.title+" "+title.genres+" "+(title.overview == null ? "" : title.overview)));
@@ -362,7 +362,7 @@ helper = r'''
                 List<View> actions=new ArrayList<>();
                 actions.add(chip("RETRY",()->aiPick(queryText,type)));
                 actions.add(chip("BROWSE ALL",()->{selectedMood="";selectedKind="";visiblePerRail=12;aiPick("","");}));
-                if(!mood.isEmpty())ready.removeIf(t->!t.genres.toLowerCase(java.util.Locale.ROOT).contains(AiCatalog.genre(mood).toLowerCase(java.util.Locale.ROOT)));
+                if(!mood.isEmpty())ready.removeIf(t->!AiCatalog.matchesGenre(t.genres,AiCatalog.genre(mood)));
                 if(ready.isEmpty()) {
                     addRow("CATALOG",actions,a.dp(34));addNote(result.message);return;
                 }
@@ -370,7 +370,7 @@ helper = r'''
                 List<View> movies=new ArrayList<>(),shows=new ArrayList<>();
                 int movieCount=0,showCount=0;
                 for(Search.Title title:ready) {
-                    if(!mood.isEmpty()&&!title.genres.toLowerCase(java.util.Locale.ROOT).contains(AiCatalog.genre(mood).toLowerCase(java.util.Locale.ROOT)))continue;
+                    if(!mood.isEmpty()&&!AiCatalog.matchesGenre(title.genres,AiCatalog.genre(mood)))continue;
                     if("tv".equals(title.type)){if(showCount++>=visiblePerRail)continue;}
                     else if(movieCount++>=visiblePerRail)continue;
                     if("tv".equals(title.type))shows.add(recommendationCard(title));

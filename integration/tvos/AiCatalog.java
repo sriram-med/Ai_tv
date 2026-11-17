@@ -30,6 +30,10 @@ final class AiCatalog {
             if(q.matches(".*\\b"+java.util.regex.Pattern.quote(group[i])+"\\b.*"))return group[0];
         return "";
     }
+    static boolean matchesGenre(String genres,String category) {
+        String normalized=(genres==null?"":genres).toLowerCase(Locale.ROOT).replace("science fiction","sci-fi").replace("romantic","romance");
+        return category==null||category.isEmpty()||normalized.contains(category.toLowerCase(Locale.ROOT));
+    }
     static Result load(Context c,String prompt,String kind,Search.Apps apps) {
         return load(c,prompt,kind,apps,"");
     }
@@ -48,7 +52,7 @@ final class AiCatalog {
         List<Search.Title> out=new ArrayList<>();Set<String> seen=new HashSet<>();
         for(Search.Title t:all) {
             if(t==null||t.title.isEmpty()||(!kind.isEmpty()&&!kind.equals(t.type)))continue;
-            if(!category.isEmpty()&&!t.genres.toLowerCase(Locale.ROOT).contains(category.toLowerCase(Locale.ROOT)))continue;
+            if(!matchesGenre(t.genres,category))continue;
             String id=t.type+":"+(t.imdb.isEmpty()?t.title.toLowerCase(Locale.ROOT)+t.year:t.imdb);
             if(seen.add(id)) {if(t.offers.isEmpty())Search.addStremio(c,t);out.add(t);}
         }

@@ -20,6 +20,8 @@ static volatile boolean offline=false;static int calls=0;
 static String fixture="{\"metas\":[{\"id\":\"tt1\",\"name\":\"Thriller one\",\"releaseInfo\":\"2025\",\"genres\":[\"Thriller\"],\"poster\":\"https://example.org/a.jpg\"},{\"id\":\"tt2\",\"name\":\"Family one\",\"genres\":[\"Family\"]},{\"id\":\"invalid\",\"name\":\"Not a film\"}]}";
 static void check(boolean test,String message){if(!test)throw new AssertionError(message);}
 public static void main(String[] args)throws Exception {
+ check(AiCatalog.matchesGenre("science fiction, adventure",AiCatalog.genre("science fiction")),"Wikidata science fiction mood mismatch");
+ check(AiCatalog.matchesGenre("romantic comedy",AiCatalog.genre("romance")),"Romance mood mismatch");
  Thread.setDefaultUncaughtExceptionHandler((thread,error)->{error.printStackTrace();System.exit(1);});
  URL.setURLStreamHandlerFactory(protocol->protocol.equals("https")?new URLStreamHandler(){protected URLConnection openConnection(URL u){return new HttpURLConnection(u){
  public void disconnect(){}public boolean usingProxy(){return false;}public void connect(){}
